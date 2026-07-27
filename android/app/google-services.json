@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "85900666000",
+    "firebase_url": "https://sira-transport-default-rtdb.firebaseio.com",
+    "project_id": "sira-transport",
+    "storage_bucket": "sira-transport.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:85900666000:android:ba7ac15383a5547f5d2415",
+        "android_client_info": {
+          "package_name": "com.example.sira_transport"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC4ihgg4WCxs-uEdfFgSScDLlqHRf5EyWo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

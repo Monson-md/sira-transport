@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(where flutter *)",
+      "Bash(npx -y firebase-tools@latest firestore:locations)",
+      "Bash(npx -y firebase-tools@latest firestore:databases:create '\\(default\\)' --edition=\"enterprise\" --location=\"europe-west9\")",
+      "Bash(npx -y firebase-tools@latest firestore:databases:create '\\(default\\)' --edition=\"standard\" --location=\"europe-west9\")"
+    ]
+  }
+}

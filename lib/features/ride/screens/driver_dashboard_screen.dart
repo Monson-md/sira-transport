@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../auth/models/user_model.dart';
 import '../../auth/services/auth_service.dart';
+import '../../auth/screens/profile_screen.dart';
 import '../models/ride_model.dart';
 import '../services/ride_service.dart';
 
@@ -17,8 +18,8 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
 
   late final Future<UserModel?> _profileFuture;
 
-  /// Ids des courses en cours d'acceptation, pour désactiver leur bouton.
-  final Set<String> _acceptingRideIds = {};
+  /// Ids des courses en cours d'acceptation ou de finalisation, pour désactiver leur bouton.
+  final Set<String> _pendingActionRideIds = {};
 
   @override
   void initState() {
@@ -32,8 +33,14 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
     return _authService.getUserData(uid);
   }
 
+  void _openProfile() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const ProfileScreen()),
+    );
+  }
+
   Future<void> _acceptRide(RideModel ride, String driverId) async {
-    setState(() => _acceptingRideIds.add(ride.id));
+    setState(() => _pendingActionRideIds.add(ride.id));
     try {
       await _rideService.acceptRide(ride.id, driverId);
       if (!mounted) return;
@@ -46,14 +53,40 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
         SnackBar(content: Text('Erreur : ${e.toString()}')),
       );
     } finally {
-      if (mounted) setState(() => _acceptingRideIds.remove(ride.id));
+      if (mounted) setState(() => _pendingActionRideIds.remove(ride.id));
+    }
+  }
+
+  Future<void> _completeRide(RideModel ride) async {
+    setState(() => _pendingActionRideIds.add(ride.id));
+    try {
+      await _rideService.completeRide(ride.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Course marquée comme terminée !')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur : ${e.toString()}')),
+      );
+    } finally {
+      if (mounted) setState(() => _pendingActionRideIds.remove(ride.id));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Courses disponibles')),
+      appBar: AppBar(
+        title: const Text('Courses disponibles'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.person_outline),
+            onPressed: _openProfile,
+          ),
+        ],
+      ),
       body: FutureBuilder<UserModel?>(
         future: _profileFuture,
         builder: (context, profileSnapshot) {
@@ -68,47 +101,89 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
             );
           }
 
-          return StreamBuilder<List<RideModel>>(
-            stream: _rideService.getAvailableRidesStream(profile.country, profile.city),
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                return const Center(
-                  child: Text('Erreur de chargement des courses.'),
-                );
-              }
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              StreamBuilder<List<RideModel>>(
+                stream: _rideService.getAcceptedRidesForDriver(profile.uid),
+                builder: (context, snapshot) {
+                  final acceptedRides = snapshot.data ?? [];
+                  if (acceptedRides.isEmpty) return const SizedBox.shrink();
 
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-
-              final rides = snapshot.data ?? [];
-              if (rides.isEmpty) {
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Text(
-                      'Aucune course en attente pour le moment à ${profile.city}.',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyLarge,
-                    ),
-                  ),
-                );
-              }
-
-              return ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: rides.length,
-                itemBuilder: (context, index) {
-                  final ride = rides[index];
-                  final isAccepting = _acceptingRideIds.contains(ride.id);
-                  return _RideCard(
-                    ride: ride,
-                    isAccepting: isAccepting,
-                    onAccept: () => _acceptRide(ride, profile.uid),
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 8),
+                        child: Text(
+                          'Ma course en cours',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        ),
+                      ),
+                      ...acceptedRides.map(
+                        (ride) => _RideCard(
+                          ride: ride,
+                          actionLabel: 'Terminer la course',
+                          isActionLoading: _pendingActionRideIds.contains(ride.id),
+                          onAction: () => _completeRide(ride),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                   );
                 },
-              );
-            },
+              ),
+              const Text(
+                'Courses disponibles',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 8),
+              StreamBuilder<List<RideModel>>(
+                stream: _rideService.getAvailableRidesStream(profile.country, profile.city),
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(child: Text('Erreur de chargement des courses.')),
+                    );
+                  }
+
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+
+                  final rides = snapshot.data ?? [];
+                  if (rides.isEmpty) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 24),
+                      child: Center(
+                        child: Text(
+                          'Aucune course en attente pour le moment à ${profile.city}.',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodyLarge,
+                        ),
+                      ),
+                    );
+                  }
+
+                  return Column(
+                    children: rides
+                        .map(
+                          (ride) => _RideCard(
+                            ride: ride,
+                            actionLabel: 'Accepter la course',
+                            isActionLoading: _pendingActionRideIds.contains(ride.id),
+                            onAction: () => _acceptRide(ride, profile.uid),
+                          ),
+                        )
+                        .toList(),
+                  );
+                },
+              ),
+            ],
           );
         },
       ),
@@ -118,13 +193,15 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
 
 class _RideCard extends StatelessWidget {
   final RideModel ride;
-  final bool isAccepting;
-  final VoidCallback onAccept;
+  final String actionLabel;
+  final bool isActionLoading;
+  final VoidCallback onAction;
 
   const _RideCard({
     required this.ride,
-    required this.isAccepting,
-    required this.onAccept,
+    required this.actionLabel,
+    required this.isActionLoading,
+    required this.onAction,
   });
 
   String get _formattedPrice {
@@ -197,18 +274,18 @@ class _RideCard extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             FilledButton(
-              onPressed: isAccepting ? null : onAccept,
+              onPressed: isActionLoading ? null : onAction,
               style: FilledButton.styleFrom(
                 minimumSize: const Size(double.infinity, 46),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              child: isAccepting
+              child: isActionLoading
                   ? const SizedBox(
                       height: 20,
                       width: 20,
                       child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                     )
-                  : const Text('Accepter la course'),
+                  : Text(actionLabel),
             ),
           ],
         ),

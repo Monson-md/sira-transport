@@ -102,7 +102,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
         const SnackBar(content: Text('Inscription réussie ! Bienvenue sur Sira-Transport.')),
       );
 
-      // La redirection vers le bon Dashboard selon le rôle se fera à l'étape suivante.
+      // AuthGate détecte automatiquement la connexion via authStateChanges()
+      // et affiche le bon tableau de bord ; on revient donc à la racine.
+      Navigator.of(context).popUntil((route) => route.isFirst);
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

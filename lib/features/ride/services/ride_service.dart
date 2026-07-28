@@ -40,4 +40,37 @@ class RideService {
       'driverId': driverId,
     });
   }
+
+  /// Le chauffeur marque la course comme terminée.
+  Future<void> completeRide(String rideId) async {
+    await _ridesRef.doc(rideId).update({'status': 'completed'});
+  }
+
+  /// Flux temps réel des courses acceptées par un chauffeur donné,
+  /// pour lui permettre de les marquer comme terminées.
+  Stream<List<RideModel>> getAcceptedRidesForDriver(String driverId) {
+    return _ridesRef
+        .where('driverId', isEqualTo: driverId)
+        .where('status', isEqualTo: 'accepted')
+        .snapshots()
+        .map((snapshot) {
+      final rides =
+          snapshot.docs.map((doc) => RideModel.fromMap(doc.data())).toList();
+      rides.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return rides;
+    });
+  }
+
+  /// Flux temps réel de la course active (en attente ou acceptée) d'un client,
+  /// pour lui permettre de suivre son statut en direct.
+  Stream<RideModel?> getActiveRideStream(String clientId) {
+    return _ridesRef.where('clientId', isEqualTo: clientId).snapshots().map((snapshot) {
+      final rides = snapshot.docs
+          .map((doc) => RideModel.fromMap(doc.data()))
+          .where((ride) => ride.status == 'pending' || ride.status == 'accepted')
+          .toList();
+      rides.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return rides.isEmpty ? null : rides.first;
+    });
+  }
 }

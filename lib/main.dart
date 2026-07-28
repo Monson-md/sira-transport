@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart'; 
-import 'package:sira_transport/features/auth/screens/register_screen.dart'; // Import corrigé avec le chemin exact
+import 'firebase_options.dart';
+import 'package:sira_transport/features/auth/screens/auth_gate.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,7 +23,7 @@ class SiraTransportApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.green), // Style moderne Material 3
         useMaterial3: true,
       ),
-      home: const RegisterScreen(), // Charge l'écran d'inscription directement
+      home: const AuthGate(), // Redirige vers la connexion ou le tableau de bord
     );
   }
 }

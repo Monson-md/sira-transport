@@ -1,0 +1,69 @@
+rules_version = '2';
+
+// ===============================================================
+// Assumed Data Model (sira_transport)
+// ===============================================================
+//
+// Collection: users
+// Document ID: {uid} (Firebase Auth UID)
+// Fields:
+//   - uid: string (required) - matches document ID
+//   - name: string (required)
+//   - phoneNumber: string (required) - WhatsApp number
+//   - role: string (required) - one of 'client', 'driver_moto', 'driver_taxi'
+//   - country: string (required)
+//   - city: string (required)
+//   - neighborhood: string (required)
+//   - vehicleModel: string (optional) - drivers only
+//   - rating: number (required)
+//
+// Collection: rides
+// Document ID: {rideId} (auto-generated)
+// Fields:
+//   - id: string (required) - matches document ID
+//   - clientId: string (required) - uid of the requester
+//   - clientName: string (required)
+//   - clientPhone: string (required)
+//   - type: string (required) - 'colis' or 'passager'
+//   - departureNeighborhood: string (required)
+//   - departureLandmark: string (required)
+//   - arrivalNeighborhood: string (required)
+//   - arrivalLandmark: string (required)
+//   - offeredPrice: number (required)
+//   - status: string (required) - 'pending', 'accepted', 'completed', 'cancelled'
+//   - driverId: string (optional) - set by the driver who accepts
+//   - country: string (required)
+//   - city: string (required)
+//   - createdAt: timestamp (required)
+//
+// ===============================================================
+// Development note (read this before going to production):
+//
+// These rules only require the caller to be an authenticated Firebase user.
+// They intentionally do NOT enforce field-level validation, ownership, or
+// PII protection yet — they exist to unblock local development/testing
+// (e.g. a driver accepting another user's ride requires cross-user writes).
+// Before sharing the app broadly, harden these rules: restrict "users" reads
+// to the owner (or a public-safe subset), validate ride field shapes/enums,
+// and prevent a ride's clientId/price from being rewritten after creation.
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Profils utilisateurs : lecture/écriture pour tout utilisateur connecté.
+    match /users/{userId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Courses : lecture/écriture pour tout utilisateur connecté (le client
+    // publie, un chauffeur différent accepte puis termine la course).
+    match /rides/{rideId} {
+      allow read, write: if isAuthenticated();
+    }
+  }
+}

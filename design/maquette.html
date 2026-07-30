@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sira Transport — à quoi ça va ressembler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,700;12..96,800&family=Public+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --encre:#0E1420;
+  --indigo:#1B2A4A;
+  --indigo-2:#2C4271;
+  --safran:#F5B301;
+  --safran-3:#FFF0C2;
+  --vert:#0F7A5A;
+  --brique:#B03A2E;
+  --ecran:#F5F5F2;
+  --ligne:#D9D8D2;
+  --gris:#71767F;
+  --blanc:#FFFFFF;
+  --d:'Bricolage Grotesque',system-ui,sans-serif;
+  --b:'Public Sans',system-ui,sans-serif;
+  --m:'Space Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--encre);
+  color:#E8EAEE;
+  font-family:var(--b);
+  font-size:16px;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+  background-image:
+    repeating-linear-gradient(45deg,rgba(245,179,1,.035) 0 1px,transparent 1px 13px),
+    repeating-linear-gradient(-45deg,rgba(245,179,1,.035) 0 1px,transparent 1px 13px);
+}
+.wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+section{padding:76px 0;border-top:1px solid rgba(255,255,255,.09)}
+section:first-of-type{border-top:none}
+
+.eyebrow{
+  font-family:var(--m);font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--safran);display:flex;align-items:center;gap:10px;margin-bottom:18px;
+}
+.eyebrow::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,rgba(245,179,1,.5),transparent)}
+h1{font-family:var(--d);font-weight:800;font-size:clamp(2.4rem,6.6vw,5rem);line-height:.98;letter-spacing:-.03em}
+h2{font-family:var(--d);font-weight:700;font-size:clamp(1.7rem,3.6vw,2.6rem);line-height:1.05;letter-spacing:-.02em;margin-bottom:14px}
+h3{font-family:var(--d);font-weight:700;font-size:1.12rem;letter-spacing:-.01em;margin-bottom:6px}
+.lede{font-size:1.09rem;color:#AFB6C2;max-width:62ch}
+.small{font-size:.9rem;color:#8F97A5}
+
+/* ---------- HERO ---------- */
+.hero{padding:88px 0 60px}
+.hero h1 span{color:var(--safran)}
+.hero-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:56px;align-items:start;margin-top:40px}
+@media(max-width:900px){.hero-grid{grid-template-columns:1fr;gap:36px}}
+
+/* signature : le bordereau repère */
+.bordereau{
+  background:var(--ecran);color:var(--encre);border-radius:4px;padding:26px 26px 22px;
+  box-shadow:0 26px 60px rgba(0,0,0,.5);position:relative;overflow:hidden;
+}
+.bordereau::before{content:"";position:absolute;inset:0 0 auto 0;height:6px;
+  background:repeating-linear-gradient(90deg,var(--safran) 0 16px,var(--indigo) 16px 32px)}
+.bord-top{display:flex;justify-content:space-between;align-items:baseline;padding-top:8px;margin-bottom:20px}
+.bord-type{font-family:var(--m);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--gris)}
+.bord-num{font-family:var(--m);font-size:11px;color:var(--gris)}
+.route{display:grid;grid-template-columns:22px 1fr;gap:0 14px}
+.route-dot{width:13px;height:13px;margin-top:7px;border-radius:2px;background:var(--safran)}
+.route-dot.fin{border-radius:50%;background:var(--indigo)}
+.route-line{width:2px;height:100%;min-height:26px;margin:4px 0 4px 5.5px;
+  background:repeating-linear-gradient(180deg,var(--indigo) 0 4px,transparent 4px 9px)}
+.route-lab{font-family:var(--m);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--gris)}
+.route-q{font-family:var(--d);font-weight:700;font-size:1.5rem;line-height:1.1;letter-spacing:-.02em}
+.route-r{font-size:.95rem;color:#4B515C}
+.route-pad{padding-bottom:16px}
+.bord-bas{display:flex;justify-content:space-between;align-items:flex-end;margin-top:22px;padding-top:18px;border-top:1px dashed var(--ligne)}
+.tampon{
+  font-family:var(--d);font-weight:800;font-size:2rem;letter-spacing:-.03em;
+  background:var(--safran);color:var(--encre);padding:4px 14px;border-radius:3px;transform:rotate(-1.5deg)
+}
+.tampon em{font-family:var(--m);font-style:normal;font-size:.8rem;font-weight:700;letter-spacing:.06em}
+
+/* la voix */
+.voix{border:1px solid rgba(255,255,255,.16);border-radius:4px;padding:22px;background:rgba(255,255,255,.03)}
+.voix-h{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.onde{display:flex;align-items:center;gap:3px;height:22px}
+.onde i{display:block;width:3px;background:var(--safran);border-radius:2px;animation:pulse 1.15s ease-in-out infinite}
+@keyframes pulse{0%,100%{height:5px;opacity:.45}50%{height:20px;opacity:1}}
+.voix-txt{font-family:var(--d);font-size:1.16rem;line-height:1.45;color:#F4F1E8}
+.voix-txt b{color:var(--safran);font-weight:700}
+@media(prefers-reduced-motion:reduce){.onde i{animation:none;height:12px}}
+
+.faits{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:rgba(255,255,255,.12);margin-top:26px;border:1px solid rgba(255,255,255,.12)}
+.fait{background:var(--encre);padding:16px 18px}
+.fait dt{font-family:var(--m);font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--gris);margin-bottom:4px}
+.fait dd{font-size:.94rem;color:#DCE0E7}
+@media(max-width:640px){.faits{grid-template-columns:1fr}}
+
+/* ---------- TELEPHONES ---------- */
+.grille{display:grid;grid-template-columns:repeat(auto-fill,minmax(258px,1fr));gap:34px 26px;margin-top:38px}
+.poste{display:flex;flex-direction:column;gap:12px}
+.poste-h{display:flex;gap:10px;align-items:baseline}
+.poste-n{font-family:var(--m);font-size:11px;color:var(--safran);flex:none;padding-top:2px}
+.poste-t{font-family:var(--d);font-weight:700;font-size:1rem;line-height:1.25}
+.poste-d{font-size:.85rem;color:#8F97A5;line-height:1.45}
+
+.tel{
+  width:100%;background:var(--ecran);border-radius:22px;overflow:hidden;color:#16181D;
+  border:7px solid #05070C;box-shadow:0 16px 40px rgba(0,0,0,.55);font-size:12px;line-height:1.42;
+  display:flex;flex-direction:column;min-height:456px;
+}
+.tel .bar{background:var(--indigo);color:#fff;display:flex;justify-content:space-between;padding:5px 12px;font-family:var(--m);font-size:9px;letter-spacing:.04em}
+.tel .app{background:var(--indigo);color:#fff;padding:12px 14px 14px;display:flex;align-items:center;gap:9px}
+.tel .app .t{font-family:var(--d);font-weight:700;font-size:15px;letter-spacing:-.01em}
+.tel .app .r{margin-left:auto;font-size:15px;opacity:.85}
+.tel .co{padding:14px;flex:1;display:flex;flex-direction:column;gap:11px}
+.tel .co.jaune{background:var(--safran-3)}
+
+.lab{font-family:var(--m);font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--gris)}
+.champ{background:#fff;border:1px solid var(--ligne);border-radius:9px;padding:8px 10px}
+.champ .v{font-weight:600;font-size:12.5px;color:#16181D}
+.champ .p{color:#9AA0A9;font-size:12.5px}
+.champ.focus{border-color:var(--indigo);box-shadow:0 0 0 2px rgba(27,42,74,.13)}
+
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.tuile{border:1.5px solid var(--ligne);background:#fff;border-radius:11px;padding:12px 8px;text-align:center}
+.tuile .ic{font-size:22px;line-height:1.2}
+.tuile .n{font-weight:700;font-size:11.5px;margin-top:3px}
+.tuile.on{border-color:var(--indigo);background:var(--indigo);color:#fff}
+
+.bp{background:var(--indigo);color:#fff;border-radius:10px;padding:11px;text-align:center;font-weight:700;font-size:12.5px}
+.bp.jaune{background:var(--safran);color:var(--encre)}
+.bp.vert{background:var(--vert)}
+.bs{border:1.5px solid var(--indigo);color:var(--indigo);border-radius:10px;padding:10px;text-align:center;font-weight:700;font-size:12.5px;background:#fff}
+.bs.rouge{border-color:var(--brique);color:var(--brique)}
+
+.crs{background:#fff;border:1px solid var(--ligne);border-left:4px solid var(--safran);border-radius:10px;padding:11px}
+.crs.pris{border-left-color:var(--vert)}
+.crs .hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.crs .tg{font-family:var(--m);font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;background:var(--safran-3);color:#7A5A00;padding:2px 6px;border-radius:3px}
+.crs .tg.v{background:#DFF0E9;color:#0B5C43}
+.crs .tp{font-family:var(--d);font-weight:800;font-size:16px;letter-spacing:-.02em}
+.crs .tp em{font-style:normal;font-family:var(--m);font-size:9px;font-weight:700}
+.crs .qt{font-weight:700;font-size:12.5px;line-height:1.3}
+.crs .rp{color:#767C86;font-size:11px;line-height:1.35}
+.crs .fl{color:var(--indigo-2);font-size:11px;margin:2px 0}
+.crs .ft{display:flex;justify-content:space-between;align-items:center;margin-top:9px;padding-top:8px;border-top:1px solid #EDEBE5}
+.crs .il{font-family:var(--m);font-size:9px;color:#9AA0A9}
+
+.avis{background:#fff;border:1px solid var(--ligne);border-radius:10px;padding:11px;text-align:center}
+.avis .ini{width:42px;height:42px;border-radius:50%;background:var(--indigo);color:#fff;font-family:var(--d);font-weight:700;font-size:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 7px}
+.avis .nm{font-weight:700;font-size:13px}
+.avis .mt{color:#767C86;font-size:11px}
+.etoiles{color:var(--safran);letter-spacing:2px;font-size:15px}
+
+.note{background:#fff;border:1px dashed var(--ligne);border-radius:9px;padding:9px 10px;font-size:11px;color:#5B616B}
+.note b{color:#16181D}
+.bulle{display:flex;align-items:center;gap:7px;background:var(--indigo);color:#fff;border-radius:9px;padding:9px 10px;font-size:11px}
+.spin{width:34px;height:34px;border:3px solid rgba(27,42,74,.16);border-top-color:var(--indigo);border-radius:50%;margin:6px auto;animation:tourne 1s linear infinite}
+@keyframes tourne{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.spin{animation:none}}
+.vide{text-align:center;color:#8B9099;padding:22px 8px}
+.vide .ic{font-size:26px;opacity:.4}
+.solde{background:var(--indigo);color:#fff;border-radius:12px;padding:14px}
+.solde .n{font-family:var(--d);font-weight:800;font-size:28px;letter-spacing:-.03em}
+.solde .n em{font-family:var(--m);font-style:normal;font-size:12px;font-weight:700}
+.lgn{display:flex;justify-content:space-between;font-size:11.5px;padding:6px 0;border-bottom:1px solid #EAE8E2}
+.lgn b{font-weight:600}
+.bgv{display:inline-block;font-family:var(--m);font-size:8.5px;letter-spacing:.08em;padding:1px 5px;border-radius:3px;background:#DFF0E9;color:#0B5C43}
+.bgv.att{background:#FDEDD3;color:#8A5B00}
+
+/* ---------- CYCLE ---------- */
+.cycle{display:grid;grid-template-columns:repeat(5,1fr);gap:0;margin-top:34px;border:1px solid rgba(255,255,255,.13)}
+.etape{padding:20px 18px;border-right:1px solid rgba(255,255,255,.13);position:relative}
+.etape:last-child{border-right:none}
+.etape .st{font-family:var(--m);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;padding:2px 6px;border-radius:3px;display:inline-block;margin-bottom:10px;background:rgba(245,179,1,.16);color:var(--safran)}
+.etape .st.v{background:rgba(15,122,90,.22);color:#4FD3A6}
+.etape .st.g{background:rgba(255,255,255,.1);color:#A9B0BC}
+.etape h4{font-family:var(--d);font-weight:700;font-size:1rem;margin-bottom:6px}
+.etape p{font-size:.85rem;color:#98A0AD;line-height:1.5}
+@media(max-width:920px){.cycle{grid-template-columns:1fr}.etape{border-right:none;border-bottom:1px solid rgba(255,255,255,.13)}.etape:last-child{border-bottom:none}}
+
+/* ---------- COLONNES ---------- */
+.deux{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:34px}
+@media(max-width:820px){.deux{grid-template-columns:1fr}}
+.bloc{border:1px solid rgba(255,255,255,.14);padding:26px;background:rgba(255,255,255,.025)}
+.bloc.oui{border-left:3px solid var(--vert)}
+.bloc.non{border-left:3px solid var(--brique)}
+.bloc h3{margin-bottom:16px}
+.liste{list-style:none;display:flex;flex-direction:column;gap:9px}
+.liste li{font-size:.94rem;color:#C2C8D2;padding-left:22px;position:relative;line-height:1.5}
+.liste li::before{content:"→";position:absolute;left:0;color:var(--safran);font-family:var(--m)}
+.liste.non li::before{content:"×";color:var(--brique)}
+
+.frise{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.13);margin-top:34px}
+.ph{background:var(--encre);padding:24px 22px}
+.ph .q{font-family:var(--m);font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--safran);margin-bottom:12px}
+.ph h4{font-family:var(--d);font-weight:700;font-size:1.28rem;margin-bottom:4px;letter-spacing:-.02em}
+.ph .pr{font-family:var(--d);font-weight:800;font-size:1.7rem;color:var(--safran);letter-spacing:-.03em;margin-bottom:10px}
+.ph p{font-size:.88rem;color:#98A0AD;line-height:1.5}
+@media(max-width:820px){.frise{grid-template-columns:1fr}}
+
+.risques{display:flex;flex-direction:column;gap:1px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.13);margin-top:32px}
+.rq{background:var(--encre);padding:20px 22px;display:grid;grid-template-columns:150px 1fr;gap:22px}
+.rq .k{font-family:var(--m);font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:var(--safran);padding-top:3px}
+.rq p{font-size:.94rem;color:#B8BFC9;line-height:1.55}
+.rq p b{color:#F0F2F5;font-weight:600}
+@media(max-width:700px){.rq{grid-template-columns:1fr;gap:8px}}
+
+footer{padding:52px 0 68px;border-top:1px solid rgba(255,255,255,.09)}
+footer p{font-size:.88rem;color:#7C838F;max-width:70ch}
+a{color:var(--safran)}
+:focus-visible{outline:2px solid var(--safran);outline-offset:3px}
+</style>
+</head>
+<body>
+
+<!-- ================= HERO ================= -->
+<section class="hero">
+  <div class="wrap">
+    <p class="eyebrow">Sira Transport · Bamako · maquette V1</p>
+    <h1>Pas d'adresse.<br>Un quartier,<br><span>un repère.</span></h1>
+    <div class="hero-grid">
+      <div>
+        <div class="bordereau">
+          <div class="bord-top">
+            <span class="bord-type">Course colis · Moto</span>
+            <span class="bord-num">#4C81 · il y a 2 min</span>
+          </div>
+          <div class="route">
+            <div><div class="route-dot"></div><div class="route-line"></div></div>
+            <div class="route-pad">
+              <p class="route-lab">Départ</p>
+              <p class="route-q">Kalabancoro</p>
+              <p class="route-r">près du terrain de foot</p>
+            </div>
+            <div><div class="route-dot fin"></div></div>
+            <div>
+              <p class="route-lab">Arrivée</p>
+              <p class="route-q">Badalabougou</p>
+              <p class="route-r">devant la pharmacie Sabou</p>
+            </div>
+          </div>
+          <div class="bord-bas">
+            <div>
+              <p class="route-lab">Prix proposé</p>
+              <p class="small" style="color:#767C86">Négocié par le client</p>
+            </div>
+            <p class="tampon">1 000 <em>FCFA</em></p>
+          </div>
+        </div>
+        <dl class="faits">
+          <div class="fait"><dt>Localisation</dt><dd>Quartier + repère parlé. Aucun GPS requis.</dd></div>
+          <div class="fait"><dt>Prix</dt><dd>Proposé par le client, accepté par le chauffeur.</dd></div>
+          <div class="fait"><dt>Contact</dt><dd>Appel ou WhatsApp, dès l'acceptation.</dd></div>
+        </dl>
+      </div>
+
+      <div>
+        <div class="voix">
+          <div class="voix-h">
+            <div class="onde"><i style="animation-delay:0s"></i><i style="animation-delay:.1s"></i><i style="animation-delay:.2s"></i><i style="animation-delay:.3s"></i><i style="animation-delay:.15s"></i><i style="animation-delay:.05s"></i><i style="animation-delay:.25s"></i></div>
+            <p class="route-lab" style="color:#8F97A5">Ce que le chauffeur entend</p>
+          </div>
+          <p class="voix-txt">« Nouvelle course <b>colis</b>. Départ <b>Kalabancoro</b>, près du terrain de foot. Arrivée <b>Badalabougou</b>. Prix <b>mille francs</b>. »</p>
+          <p class="small" style="margin-top:14px">Il garde les yeux sur la route. C'est la fonctionnalité qui te différencie de tout le reste.</p>
+        </div>
+        <p class="lede" style="margin-top:26px;font-size:.98rem">
+          Cette page montre l'application telle qu'elle sera à la fin des sept prompts : les douze écrans, le cycle d'une course, ce qui est dedans et ce qui n'y est pas.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= CLIENT ================= -->
+<section>
+  <div class="wrap">
+    <p class="eyebrow">Côté client — vendeuse, commerçant, passager</p>
+    <h2>Publier une course en moins d'une minute</h2>
+    <p class="lede">Le client ouvre l'app, choisit colis ou passager, son quartier est déjà rempli. Il tape un repère, un prix, et il attend.</p>
+
+    <div class="grille">
+
+      <div class="poste">
+        <div class="poste-h"><span class="poste-n">C1</span><div><p class="poste-t">Inscription</p><p class="poste-d">Rôle, WhatsApp, quartier. Six champs, pas plus.</p></div></div>
+        <div class="tel">
+          <div class="bar"><span>08:14</span><span>4G ▮▮▮</span></div>
+          <div class="app"><span class="t">Créer un compte</span></div>
+          <div class="co">
+            <div><p class="lab">Je suis</p><div class="champ focus"><p class="v">Client — vendeur / passager ▾</p></div></div>
+            <div><p class="lab">Nom complet</p><div class="champ"><p class="v">Aminata Traoré</p></div></div>
+            <div><p class="lab">Numéro WhatsApp</p><div class="champ"><p class="v">🇲🇱 +223 &nbsp; 76 45 22 10</p></div></div>
+            <div class="duo">
+              <div><p class="lab">Pays</p><div class="champ"><p class="v">Mali ▾</p></div></div>
+              <div><p class="lab">Ville</p><div class="champ"><p class="v">Bamako ▾</p></div></div>
+            </div>
+            <div><p class="lab">Quartier</p><div class="champ"><p class="v">Kalabancoro</p></div></div>
+            <div style="margin-top:auto"><div class="bp">Continuer</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="poste">
+        <div class="poste-h"><span class="poste-n">C2</span><div><p class="poste-t">Vérification du numéro</p><p class="poste-d">Le SMS règle ton problème : un compte = un vrai numéro.</p></div></div>
+        <div class="tel">
+          <div class="bar"><span>08:15</span><span>4G ▮▮▮</span></div>
+          <div class="app"><span class="r">←</span><span class="t">Vérification</span></div>
+          <div class="co">
+            <p style="font-size:12.5px;color:#5B616B">Code envoyé au <b>+223 76 45 22 10</b>. Il arrive par SMS dans quelques secondes.</p>
+            <div class="duo" style="grid-template-columns:repeat(6,1fr);gap:5px">
+              <div class="champ" style="text-align:center;padding:11px 0"><p class="v">4</p></div>
+              <div class="champ" style="text-align:center;padding:11px 0"><p class="v">9</p></div>
+              <div class="champ" style="text-align:center;padding:11px 0"><p class="v">2</p></div>
+              <div class="champ focus" style="text-align:center;padding:11px 0"><p class="v">1</p></div>
+              <div class="champ" style="text-align:center;padding:11px 0"><p class="p">·</p></div>
+              <div class="champ" style="text-align:center;padding:11px 0"><p class="p">·</p></div>
+            </div>
+            <p class="note">Sans cette étape, n'importe qui s'inscrit avec le numéro de quelqu'un d'autre. <b>C'est ce qui manquait.</b></p>
+            <div style="margin-top:auto;display:flex;flex-direction:column;gap:8px">
+              <div class="bp">Vérifier</div>
+              <p style="text-align:center;font-size:11px;color:#8B9099">Renvoyer le code dans 0:42</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="poste">
+        <div class="poste-h"><span class="poste-n">C3</span><div><p class="poste-t">Nouvelle course</p><p class="poste-d">Le quartier de départ est pré-rempli. Prix par paliers rapides.</p></div></div>
+        <div class="tel">
+          <div class="bar"><span>08:22</span><span>4G ▮▮▮</span></div>
+          <div class="app"><span class="t">Nouvelle course</span><span class="r">👤</span></div>
+          <div class="co">
+            <div class="duo">
+              <div class="tuile on"><p class="ic">📦</p><p class="n">Colis</p></div>
+              <div class="tuile"><p class="ic">👤</p><p class="n">Passager</p></div>
+            </div>
+            <div><p class="lab">Quartier de départ</p><div class="champ"><p class="v">Kalabancoro</p></div></div>
+            <div><p class="lab">Repère de départ</p><div class="champ focus"><p class="v">près du terrain de foot</p></div></div>
+            <div><p class="lab">Quartier d'arrivée</p><div class="champ"><p class="v">Badalabougou</p></div></div>
+            <div><p class="lab">Repère d'arrivée</p><div class="champ"><p class="p">devant la pharmacie…</p></div></div>
+            <div>
+              <p class="lab">Prix proposé</p>
+              <div class="champ" style="display:flex;justify-content:space-between;align-items:center">
+                <span class="v" style="font-size:17px;font-family:var(--d);font-weight:800">1 000 FCFA</span>
+                <span style="font-family:var(--m);font-size:10px;color:var(--indigo-2)">+100 · +500</span>
+              </div>
+            </div>
+            <div style="margin-top:auto"><div class="bp jaune">Publier la course</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="poste">
+        <div class="poste-h"><span class="poste-n">C4</span><div><p class="poste-t">Recherche en cours</p><p class="poste-d">L'écran qui manquait complètement. Le client n'attend plus dans le vide.</p></div></div>
+        <div class="tel">
+          <div class="bar"><span>08:23</span><span>4G ▮▮▮</span></div>
+          <div class="app"><span class="t">Course en cours</span></div>
+          <div class="co jaune" style="text-align:center">
+            <div class="spin"></div>
+            <p style="font-family:var(--d);font-weight:700;font-size:15px">Recherche d'un chauffeur…</p>
+            <p style="font-size:11.5px;color:#7A6420">14 motos en ligne à Kalabancoro</p>
+            <div class="crs" style="text-align:left;border-left-color:var(--indigo)">
+              <p class="qt">Kalabancoro → Badalabougou</p>
+              <p class="rp">Colis · 1 000 FCFA</p>
+            </div>
+            <div class="note" style="text-align:left">Pas de réponse depuis 3 minutes ? <b>Augmente ton offre de 500 F</b> pour passer devant.</div>
+            <div style="margin-top:auto;display:flex;flex-direction:column;gap:8px">
+              <div class="bp jaune">Proposer 1 500 FCFA</div>
+              <div class="bs rouge">Annuler la course</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="poste">
+        <div class="poste-h"><span class="poste-n">C5</span><div><p class="poste-t">Chauffeur trouvé</p><p class="poste-d">Le numéro n'apparaît qu'ici, jamais avant.</p></div></div>
+        <div class="tel">
+          <div class="bar"><span>08:24</span><span>4G ▮▮▮</span></div>
+          <div class="app"><span class="t">Course acceptée</span></div>
+          <div class="co">
+            <div class="bulle">✓ &nbsp;Ibrahim arrive vers toi</div>
+            <div class="avis">
+              <div class="ini">IK</div>
+              <p class="nm">Ibrahim Konaté</p>
+              <p class="mt">Moto Sanili rouge · MA 4471</p>
+              <p class="etoiles">★★★★★ <span style="color:#767C86;font-size:11px;font-family:var(--b)">4,8 · 132 courses</span></p>
+              <p class="bgv" style="margin-top:6px">Pièces vérifiées</p>
+            </div>
+            <div class="duo">
+              <div class="bp vert">📞 Appeler</div>
+              <div class="bp" style="background:#25D366;color:#062">💬 WhatsApp</div>
+            </div>
+            <div class="crs pris">
+              <p class="qt">Kalabancoro → Badalabougou</p>
+              <p class="rp">près du terrain de foot → pharmacie Sabou</p>
+              <p class="tp" style="margin-top:6px">1 000 <em>FCFA</em></p>
+            </div>
+            <p class="note" style="margin-top:auto">Le paiement se fait de la main à la main, comme d'habitude. L'app ne touche pas à l'argent de la course.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="poste">
+        <div class="poste-h"><span class="poste-n">C6</span><div><p class="poste-t">Course terminée</p><p class="poste-d">La note alimente la confiance. C'est ce qui retient les gens.</p></div></div>
+        <div class="tel">
+          <div class="bar"><span>08:51</span><span>4G ▮▮▮</span></div>
+          <div class="app"><span class="t">Terminé</span></div>
+          <div class="co" style="text-align:center">
+            <div style="font-size:38px;margin-top:14px">✓</div>
+            <p style="font-family:var(--d);font-weight:800;font-size:18px">Colis livré</p>
+            <p style="font-size:11.5px;color:#767C86">27 minutes · 1 000 FCFA</p>
+            <div class="avis" style="margin-top:6px">
+              <p class="nm" style="margin-bottom:8px">Comment était Ibrahim ?</p>
+              <p class="etoiles" style="font-size:26px;letter-spacing:5px">★★★★☆</p>
+              <div class="champ" style="margin-top:9px;text-align:left"><p class="p">Un mot ? (facultatif)</p></div>
+            </div>
+            <div style="margin-top:auto;display:flex;flex-direction:column;gap:8px">
+              <div class="bp">Envoyer</div>
+              <div class="bs">Passer</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ================= CHAUFFEUR ================= -->
+<section>
+  <div class="wrap">
+    <p class="eyebrow">Côté chauffeur — moto-taxi, taxi</p>
+    <h2>Il conduit. L'app lui parle.</h2>
+    <p class="lede">La notification sonne, la voix annonce la course, un seul gros bouton pour accepter. C'est tout ce qu'un chauffeur doit avoir à faire en roulant.</p>
+
+    <div class="grille">
+
+      <div class="poste">
+        <div class="poste-h"><span class="poste-n">D1</span><div><p class="poste-t">En attente de vérification</p><p class="poste-d">Un chauffeur non vérifié ne voit aucune course. Aucune.</p></div></div>
+        <div class="tel">
+          <div class="bar"><span>07:02</span><span>3G ▮▮</span></div>
+          <div class="app"><span class="t">Mon dossier</span></div>
+          <div class="co">
+            <p class="bgv att">En cours de vérification</p>
+            <p style="font-size:12.5px;color:#5B616B">Ton dossier est en cours de contrôle. Tu recevras les courses dès qu'il sera validé — en général sous 24 h.</p>
+            <div class="lgn"><span>Pièce d'identité</span><b style="color:var(--vert)">✓ reçue</b></div>
+            <div class="lgn"><span>Permis de conduire</span><b style="color:var(--vert)">✓ reçue</b></div>
+            <div class="lgn"><span>Carte grise</span><b style="color:var(--vert)">✓ reçue</b></div>
+            <div class="lgn" style="border-bottom:none"><span>Photo du véhicule</span><b style="color:var(--brique)">manquante</b></div>
+            <div class="bs" style="margin-top:4px">📷 Ajouter la photo</div>
+            <p class="note" style="margin-top:auto">C'est ce contrôle qui fait que les clients accepteront de monter. Sans lui, tu n'as qu'un annuaire.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="poste">
+        <div class="poste-h"><span class="poste-n">D2</span><div><p class="poste-t">Tableau de bord</p><p class="poste-d">Temps réel, avec la lecture vocale activable en haut à droite.</p></div></div>
+        <div class="tel">
+          <div class="bar"><span>08:23</span><span>3G ▮▮</span></div>
+          <div class="app"><span class="t">Courses · Kalabancoro</span><span class="r">🔊</span></div>
+          <div class="co" style="gap:9px">
+            <div class="crs">
+              <div class="hd"><span class="tg">📦 Colis</span><span class="tp">1 000 <em>F</em></span></div>
+              <p class="qt">Kalabancoro</p>
+              <p class="rp">près du terrain de foot</p>
+              <p class="fl">↓</p>
+              <p class="qt">Badalabougou</p>
+              <p class="rp">devant la pharmacie Sabou</p>
+              <div class="ft"><span class="il">il y a 1 min</span><span style="font-size:14px">🔊</span></div>
+              <div class="bp jaune" style="margin-top:8px">Accepter la course</div>
+            </div>
+            <div class="crs">
+              <div class="hd"><span class="tg">👤 Passager</span><span class="tp">750 <em>F</em></span></div>
+              <p class="qt">Kabala → Sébénikoro</p>
+              <p class="rp">station Total → marché</p>
+              <div class="ft"><span class="il">il y a 4 min</span><span style="font-size:14px">🔊</span></div>
+              <div class="bp jaune" style="margin-top:8px">Accepter la course</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="poste">
+        <div class="poste-h"><span class="poste-n">D3</span><div><p class="poste-t">Course en cours</p><p class="poste-d">La transaction Firestore empêche deux chauffeurs de la prendre.</p></div></div>
+        <div class="tel">
+          <div class="bar"><span>08:24</span><span>3G ▮▮</span></div>
+          <div class="app"><span class="t">Ma course</span><span class="r">🔊</span></div>
+          <div class="co">
+            <div class="crs pris">
+              <div class="hd"><span class="tg v">✓ Acceptée</span><span class="tp">1 000 <em>F</em></span></div>
+              <p class="qt">Kalabancoro</p>
+              <p class="rp">près du terrain de foot</p>
+              <p class="fl">↓</p>
+              <p class="qt">Badalabougou</p>
+              <p class="rp">devant la pharmacie Sabou</p>
+            </div>
+            <div class="avis" style="text-align:left;display:flex;align-items:center;gap:9px">
+              <div class="ini" style="margin:0;width:34px;height:34px;font-size:13px">AT</div>
+              <div><p class="nm">Aminata Traoré</p><p class="mt">Cliente</p></div>
+            </div>
+            <div class="duo">
+              <div class="bp vert">📞 Appeler</div>
+              <div class="bp" style="background:#25D366;color:#062">💬 WhatsApp</div>
+            </div>
+            <div style="margin-top:auto;display:flex;flex-direction:column;gap:8px">
+              <div class="bp">Terminer la course</div>
+              <div class="bs rouge">Signaler un problème</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="poste">
+        <div class="poste-h"><span class="poste-n">D4</span><div><p class="poste-t">Mes gains</p><p class="poste-d">Ne néglige pas cet écran : c'est lui qui fait revenir les chauffeurs.</p></div></div>
+        <div class="tel">
+          <div class="bar"><span>19:40</span><span>3G ▮▮</span></div>
+          <div class="app"><span class="t">Mes gains</span></div>
+          <div class="co">
+            <div class="solde">
+              <p class="lab" style="color:rgba(255,255,255,.6)">Cette semaine</p>
+              <p class="n">28 500 <em>FCFA</em></p>
+              <p style="font-size:11px;opacity:.75">31 courses · moyenne 919 F</p>
+            </div>
+            <p class="lab">Aujourd'hui</p>
+            <div class="lgn"><span>08:24 · Kalabancoro → Badalabougou</span><b>1 000 F</b></div>
+            <div class="lgn"><span>10:02 · Kabala → ACI 2000</span><b>1 500 F</b></div>
+            <div class="lgn"><span>13:31 · Magnambougou → Faladié</span><b>800 F</b></div>
+            <div class="lgn" style="border-bottom:none"><span>17:12 · Sogoniko → Niamakoro</span><b>1 200 F</b></div>
+            <div class="note" style="margin-top:auto">Total du jour <b>4 500 FCFA</b> sur 5 courses. Ton meilleur jour : mardi, 6 200 F.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="poste">
+        <div class="poste-h"><span class="poste-n">P1</span><div><p class="poste-t">Profil et déconnexion</p><p class="poste-d">Le rôle n'est pas modifiable ici — verrouillé côté serveur.</p></div></div>
+        <div class="tel">
+          <div class="bar"><span>19:42</span><span>3G ▮▮</span></div>
+          <div class="app"><span class="r">←</span><span class="t">Mon profil</span></div>
+          <div class="co">
+            <div class="avis">
+              <div class="ini">IK</div>
+              <p class="nm">Ibrahim Konaté</p>
+              <p class="mt">Conducteur moto-taxi</p>
+              <p class="etoiles" style="font-size:13px">★★★★★ <span style="color:#767C86;font-size:11px;font-family:var(--b)">4,8</span></p>
+              <p class="bgv" style="margin-top:6px">Compte vérifié</p>
+            </div>
+            <div class="lgn"><span>WhatsApp</span><b>+223 66 12 08 44 ✓</b></div>
+            <div class="lgn"><span>Ville</span><b>Bamako, Mali</b></div>
+            <div class="lgn"><span>Quartier</span><b>Kalabancoro</b></div>
+            <div class="lgn"><span>Véhicule</span><b>Sanili rouge · MA 4471</b></div>
+            <div class="lgn" style="border-bottom:none"><span>Lecture vocale</span><b style="color:var(--vert)">Activée</b></div>
+            <div style="margin-top:auto;display:flex;flex-direction:column;gap:8px">
+              <div class="bs">Modifier mes infos</div>
+              <div class="bs rouge">Se déconnecter</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="poste">
+        <div class="poste-h"><span class="poste-n">V2</span><div><p class="poste-t">Crédit prépayé — plus tard</p><p class="poste-d">Une recharge Orange Money, puis 50 F décomptés par course.</p></div></div>
+        <div class="tel">
+          <div class="bar"><span>19:44</span><span>3G ▮▮</span></div>
+          <div class="app"><span class="t">Mon crédit</span></div>
+          <div class="co">
+            <div class="solde" style="background:var(--vert)">
+              <p class="lab" style="color:rgba(255,255,255,.65)">Crédit disponible</p>
+              <p class="n">1 350 <em>FCFA</em></p>
+              <p style="font-size:11px;opacity:.8">soit 27 courses restantes</p>
+            </div>
+            <p class="lab">Recharger</p>
+            <div class="duo">
+              <div class="tuile"><p class="n" style="font-size:14px">1 000 F</p><p class="mt" style="font-size:10px;color:#767C86">20 courses</p></div>
+              <div class="tuile on"><p class="n" style="font-size:14px">5 000 F</p><p class="mt" style="font-size:10px;opacity:.8">100 courses</p></div>
+            </div>
+            <div class="bp" style="background:#FF6600;color:#fff">Payer par Orange Money</div>
+            <p class="note" style="margin-top:auto">50 F par course acceptée. <b>Une seule transaction mobile money pour 100 courses</b> — prélever 50 F à l'unité coûterait plus cher que les 50 F.</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ================= CYCLE ================= -->
+<section>
+  <div class="wrap">
+    <p class="eyebrow">Le cycle d'une course — la seule séquence qui compte</p>
+    <h2>Cinq états, et rien d'autre</h2>
+    <p class="lede">Chaque transition est contrôlée par une règle Firestore. Personne ne peut sauter une étape ni en déclencher une qui ne le concerne pas.</p>
+    <div class="cycle">
+      <div class="etape">
+        <span class="st">pending</span>
+        <h4>Publiée</h4>
+        <p>Le client crée la course. Une Cloud Function notifie tous les chauffeurs vérifiés du quartier.</p>
+      </div>
+      <div class="etape">
+        <span class="st">notification</span>
+        <h4>Annoncée</h4>
+        <p>Le téléphone sonne, la voix lit la course en français. Le chauffeur ne quitte pas la route des yeux.</p>
+      </div>
+      <div class="etape">
+        <span class="st v">accepted</span>
+        <h4>Acceptée</h4>
+        <p>Premier arrivé, premier servi, garanti par une transaction. Les numéros s'échangent à cet instant précis.</p>
+      </div>
+      <div class="etape">
+        <span class="st v">completed</span>
+        <h4>Terminée</h4>
+        <p>Le chauffeur clôture. Paiement de la main à la main. Le client note.</p>
+      </div>
+      <div class="etape">
+        <span class="st g">cancelled</span>
+        <h4>Annulée</h4>
+        <p>Par le client tant que personne n'a accepté, ou automatiquement après 30 minutes sans preneur.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= CARTE ================= -->
+<section>
+  <div class="wrap">
+    <p class="eyebrow">La question de la carte</p>
+    <h2>Non, il n'y a pas de carte. Et c'est volontaire.</h2>
+    <p class="lede">C'est le choix le plus important de tout le projet, alors autant le poser franchement.</p>
+    <div class="deux">
+      <div class="bloc oui">
+        <h3>Pourquoi s'en passer tient debout</h3>
+        <ul class="liste">
+          <li>À Kalabancoro, « près du terrain de foot » situe mieux qu'une coordonnée GPS. C'est comme ça que les gens se donnent rendez-vous depuis toujours.</li>
+          <li>Beaucoup de rues n'ont ni nom ni numéro exploitable. Une carte afficherait une zone vide et un pin approximatif.</li>
+          <li>Une carte consomme des données. Sur un forfait à 500 F, le chauffeur désinstalle.</li>
+          <li>Elle plombe l'APK et rame sur les Android d'entrée de gamme.</li>
+          <li>Google Maps devient payant au volume. Ton modèle à 50 F la course ne peut pas l'absorber.</li>
+        </ul>
+      </div>
+      <div class="bloc non">
+        <h3>Ce que ça te coûte</h3>
+        <ul class="liste non">
+          <li>Impossible de proposer la course au chauffeur le plus proche : tu diffuses à tout le quartier.</li>
+          <li>Le client ne voit pas son colis avancer. Il doit appeler pour savoir.</li>
+          <li>Pas de calcul de distance, donc pas de prix suggéré automatiquement.</li>
+          <li>Les repères mal écrits provoqueront des appels et des retards.</li>
+        </ul>
+        <p class="small" style="margin-top:18px">La bonne réponse : <b style="color:#E8EAEE">démarre sans carte.</b> Ajoute-la en V3 uniquement si les chauffeurs te la réclament — et alors, une carte légère (OpenStreetMap via flutter_map, gratuite) suffira largement.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PHASES ================= -->
+<section>
+  <div class="wrap">
+    <p class="eyebrow">L'argent — et surtout le moment de le demander</p>
+    <h2>Gratuit d'abord. Longtemps.</h2>
+    <p class="lede">Tu as raison sur le calendrier. Un chauffeur ne paiera jamais 5 000 F pour rejoindre une plateforme vide : il faut d'abord qu'il gagne de l'argent grâce à toi.</p>
+    <div class="frise">
+      <div class="ph">
+        <p class="q">Mois 1 à 3</p>
+        <h4>Tout gratuit</h4>
+        <p class="pr">0 F</p>
+        <p>Un seul quartier. Objectif : trente chauffeurs actifs et des courses tous les jours. Rien d'autre ne compte. Techniquement, les champs <b>platformFee</b> et <b>balance</b> existent déjà, à zéro.</p>
+      </div>
+      <div class="ph">
+        <p class="q">Mois 4 à 6</p>
+        <h4>Crédit prépayé</h4>
+        <p class="pr">50 F <span style="font-size:.9rem;color:#98A0AD;font-family:var(--b);font-weight:400">/ course</span></p>
+        <p>Le chauffeur recharge par Orange Money, l'app décompte. Les cent premiers inscrits restent gratuits à vie — c'est leur récompense d'avoir cru au truc. Le compte marchand PayDunya doit être ouvert dès le mois 3.</p>
+      </div>
+      <div class="ph">
+        <p class="q">Ensuite</p>
+        <h4>Abonnement</h4>
+        <p class="pr">2 000 F <span style="font-size:.9rem;color:#98A0AD;font-family:var(--b);font-weight:400">/ mois</span></p>
+        <p>Plus simple à vendre, plus simple à collecter, et le chauffeur ne cherche plus à contourner l'app puisqu'il a déjà payé. Les 5 000 F d'inscription, oublie-les : c'est le mur qui te bloquera au démarrage.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= RISQUES ================= -->
+<section>
+  <div class="wrap">
+    <p class="eyebrow">Réponse franche à « est-ce que ça peut vraiment le faire »</p>
+    <h2>Le code, c'est la partie facile</h2>
+    <p class="lede">Techniquement, oui : tout ce qui est sur cette page est faisable avec Flutter et Firebase, et les sept prompts t'y mènent. Voilà ce qui décidera vraiment.</p>
+    <div class="risques">
+      <div class="rq"><p class="k">Le vrai obstacle</p><p><b>La liquidité.</b> Un client qui ouvre l'app et ne trouve personne ne revient jamais. Un chauffeur qui n'a aucune course désinstalle en trois jours. Il faut casser ce cercle à la main : recrute trente chauffeurs sur un seul quartier, réunis-les, montre-leur l'app en vrai. Pas de pub, pas de Facebook — du terrain.</p></div>
+      <div class="rq"><p class="k">La confiance</p><p>Tu mets en relation des inconnus, avec des colis qui ont de la valeur. La vérification des pièces et les notes ne sont pas du décor : <b>c'est ton produit.</b> Le jour où un colis disparaît, c'est ta réputation qui décide si tu survis.</p></div>
+      <div class="rq"><p class="k">Le contournement</p><p>Une fois les numéros échangés, le client peut rappeler le chauffeur directement la fois d'après. C'est inévitable. L'abonnement le neutralise ; la commission par course, non.</p></div>
+      <div class="rq"><p class="k">Ce qui te protège</p><p>Le repère parlé et la voix en français sont des choix que personne d'autre ne fera, parce qu'ils ne viennent pas d'un modèle copié sur Uber. <b>C'est ton avantage réel</b> — construis dessus plutôt que d'essayer de ressembler aux grosses apps.</p></div>
+      <div class="rq"><p class="k">Le coût technique</p><p>Firebase reste quasi gratuit jusqu'à quelques milliers de courses par mois. Attention seulement aux lectures Firestore : un flux ouvert en permanence sur cent téléphones se facture. Limite à 50 courses par requête et coupe le flux quand l'app passe en arrière-plan.</p></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p><b style="color:#E8EAEE;font-family:var(--d)">Sira Transport</b> — maquette statique. Rien ici n'est fonctionnel : c'est une image de la destination, à montrer aux chauffeurs et aux premiers clients pour récolter leurs réactions avant d'écrire la moindre ligne de code. C'est probablement la chose la plus utile que tu puisses faire cette semaine.</p>
+  </div>
+</footer>
+
+</body>
+</html>

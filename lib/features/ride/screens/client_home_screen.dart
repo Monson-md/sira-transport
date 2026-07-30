@@ -5,6 +5,7 @@ import '../../auth/screens/profile_screen.dart';
 import '../models/ride_model.dart';
 import '../services/ride_service.dart';
 import 'create_ride_screen.dart';
+import 'ride_tracking_screen.dart';
 
 class ClientHomeScreen extends StatefulWidget {
   const ClientHomeScreen({super.key});
@@ -42,6 +43,12 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     );
   }
 
+  void _openTracking(String rideId) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => RideTrackingScreen(rideId: rideId)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -68,10 +75,12 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
             );
           }
 
-          return StreamBuilder<RideModel?>(
-            stream: _rideService.getActiveRideStream(profile.uid),
+          return StreamBuilder<List<RideModel>>(
+            stream: _rideService.myRidesStream(profile.uid, 'client'),
             builder: (context, rideSnapshot) {
-              final activeRide = rideSnapshot.data;
+              final activeRide = (rideSnapshot.data ?? [])
+                  .where((r) => r.status == 'pending' || r.status == 'accepted')
+                  .firstOrNull;
 
               return SafeArea(
                 child: Padding(
@@ -87,7 +96,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                       ),
                       const SizedBox(height: 24),
                       if (activeRide != null)
-                        _ActiveRideCard(ride: activeRide)
+                        _ActiveRideCard(
+                          ride: activeRide,
+                          onTap: () => _openTracking(activeRide.id),
+                        )
                       else
                         Expanded(
                           child: Center(
@@ -125,10 +137,15 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   }
 }
 
+extension _FirstOrNull<T> on Iterable<T> {
+  T? get firstOrNull => isEmpty ? null : first;
+}
+
 class _ActiveRideCard extends StatelessWidget {
   final RideModel ride;
+  final VoidCallback onTap;
 
-  const _ActiveRideCard({required this.ride});
+  const _ActiveRideCard({required this.ride, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -137,82 +154,48 @@ class _ActiveRideCard extends StatelessWidget {
 
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  isAccepted ? Icons.check_circle : Icons.hourglass_top,
-                  color: isAccepted ? Colors.green : colorScheme.primary,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    isAccepted
-                        ? 'Un chauffeur a accepté votre course !'
-                        : 'En attente d\'un chauffeur...',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Text('${ride.departureNeighborhood} → ${ride.arrivalNeighborhood}'),
-            const SizedBox(height: 4),
-            Text(
-              '${ride.offeredPrice.toInt()} FCFA',
-              style: TextStyle(fontWeight: FontWeight.w600, color: colorScheme.primary),
-            ),
-            if (isAccepted && ride.driverId != null) ...[
-              const SizedBox(height: 16),
-              _DriverContact(driverId: ride.driverId!),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _DriverContact extends StatelessWidget {
-  final String driverId;
-
-  const _DriverContact({required this.driverId});
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<UserModel?>(
-      future: AuthService().getUserData(driverId),
-      builder: (context, snapshot) {
-        final driver = snapshot.data;
-        if (driver == null) return const SizedBox.shrink();
-
-        return Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.two_wheeler_outlined),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(driver.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                    Text(driver.phoneNumber),
-                  ],
-                ),
+              Row(
+                children: [
+                  Icon(
+                    isAccepted ? Icons.check_circle : Icons.hourglass_top,
+                    color: isAccepted ? Colors.green : colorScheme.primary,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      isAccepted
+                          ? 'Un chauffeur a accepté votre course !'
+                          : 'En attente d\'un chauffeur...',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text('${ride.departureNeighborhood} → ${ride.arrivalNeighborhood}'),
+              const SizedBox(height: 4),
+              Text(
+                '${ride.offeredPrice} FCFA',
+                style: TextStyle(fontWeight: FontWeight.w600, color: colorScheme.primary),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Touchez pour suivre la course',
+                style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
               ),
             ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }

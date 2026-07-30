@@ -10,14 +10,21 @@ class RideModel {
   final String departureLandmark;
   final String arrivalNeighborhood;
   final String arrivalLandmark;
-  final double offeredPrice; // Prix proposé en FCFA
+  final int offeredPrice; // Prix proposé en FCFA (toujours un entier)
   final String status; // 'pending', 'accepted', 'completed', 'cancelled'
-  final String? driverId; // Renseigné quand un chauffeur accepte la course
+  final String? driverId;
+  final String? driverName;
+  final String? driverPhone;
+  final String vehicleType; // 'moto', 'taxi' ou 'any' (souhait du client)
   final String country;
   final String city;
-  final DateTime createdAt;
+  final int platformFee; // Commission plateforme en FCFA — 0 tant que la V2 payante n'existe pas
+  final DateTime? createdAt;
+  final DateTime? acceptedAt;
+  final DateTime? completedAt;
+  final DateTime? cancelledAt;
 
-  RideModel({
+  const RideModel({
     required this.id,
     required this.clientId,
     required this.clientName,
@@ -30,9 +37,16 @@ class RideModel {
     required this.offeredPrice,
     this.status = 'pending',
     this.driverId,
+    this.driverName,
+    this.driverPhone,
+    required this.vehicleType,
     required this.country,
     required this.city,
-    required this.createdAt,
+    this.platformFee = 0,
+    this.createdAt,
+    this.acceptedAt,
+    this.completedAt,
+    this.cancelledAt,
   });
 
   // Convertir un document Firestore en objet de notre modèle
@@ -47,18 +61,29 @@ class RideModel {
       departureLandmark: map['departureLandmark'] ?? '',
       arrivalNeighborhood: map['arrivalNeighborhood'] ?? '',
       arrivalLandmark: map['arrivalLandmark'] ?? '',
-      offeredPrice: (map['offeredPrice'] ?? 0).toDouble(),
+      offeredPrice: (map['offeredPrice'] as num?)?.toInt() ?? 0,
       status: map['status'] ?? 'pending',
       driverId: map['driverId'],
+      driverName: map['driverName'],
+      driverPhone: map['driverPhone'],
+      vehicleType: map['vehicleType'] ?? 'any',
       country: map['country'] ?? '',
       city: map['city'] ?? '',
-      createdAt: map['createdAt'] is Timestamp
-          ? (map['createdAt'] as Timestamp).toDate()
-          : DateTime.now(),
+      platformFee: (map['platformFee'] as num?)?.toInt() ?? 0,
+      createdAt: _timestampToDate(map['createdAt']),
+      acceptedAt: _timestampToDate(map['acceptedAt']),
+      completedAt: _timestampToDate(map['completedAt']),
+      cancelledAt: _timestampToDate(map['cancelledAt']),
     );
   }
 
-  // Convertir notre objet en Map pour l'enregistrer dans Firestore
+  static DateTime? _timestampToDate(dynamic value) {
+    return value is Timestamp ? value.toDate() : null;
+  }
+
+  // Convertir notre objet en Map pour l'enregistrer dans Firestore.
+  // Les champs de date sont sérialisés tels quels : c'est au service d'y
+  // substituer FieldValue.serverTimestamp() au moment de l'écriture.
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -73,9 +98,16 @@ class RideModel {
       'offeredPrice': offeredPrice,
       'status': status,
       'driverId': driverId,
+      'driverName': driverName,
+      'driverPhone': driverPhone,
+      'vehicleType': vehicleType,
       'country': country,
       'city': city,
-      'createdAt': Timestamp.fromDate(createdAt),
+      'platformFee': platformFee,
+      'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : null,
+      'acceptedAt': acceptedAt != null ? Timestamp.fromDate(acceptedAt!) : null,
+      'completedAt': completedAt != null ? Timestamp.fromDate(completedAt!) : null,
+      'cancelledAt': cancelledAt != null ? Timestamp.fromDate(cancelledAt!) : null,
     };
   }
 }

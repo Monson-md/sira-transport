@@ -3,6 +3,10 @@ import '../../auth/models/user_model.dart';
 import '../../auth/services/auth_service.dart';
 import '../models/ride_model.dart';
 import '../services/ride_service.dart';
+import 'ride_tracking_screen.dart';
+
+const int _kMinPrice = 100;
+const List<int> _kQuickPriceSteps = [100, 500, 1000];
 
 class CreateRideScreen extends StatefulWidget {
   const CreateRideScreen({super.key});
@@ -25,6 +29,7 @@ class _CreateRideScreenState extends State<CreateRideScreen> {
   late final Future<UserModel?> _profileFuture;
 
   String _selectedType = 'colis';
+  String _selectedVehicleType = 'moto';
   bool _isPublishing = false;
 
   @override
@@ -53,34 +58,43 @@ class _CreateRideScreenState extends State<CreateRideScreen> {
     super.dispose();
   }
 
+  void _bumpPrice(int amount) {
+    final current = int.tryParse(_priceController.text.trim()) ?? 0;
+    setState(() {
+      _priceController.text = (current + amount).toString();
+    });
+  }
+
   Future<void> _submit(UserModel profile) async {
     if (!_formKey.currentState!.validate()) return;
 
+    final price = int.parse(_priceController.text.trim());
+    final ride = RideModel(
+      id: '',
+      clientId: profile.uid,
+      clientName: profile.name,
+      clientPhone: profile.phoneNumber,
+      type: _selectedType,
+      departureNeighborhood: _departureNeighborhoodController.text.trim(),
+      departureLandmark: _departureLandmarkController.text.trim(),
+      arrivalNeighborhood: _arrivalNeighborhoodController.text.trim(),
+      arrivalLandmark: _arrivalLandmarkController.text.trim(),
+      offeredPrice: price,
+      vehicleType: _selectedVehicleType,
+      country: profile.country,
+      city: profile.city,
+    );
+
+    final confirmed = await _showRecapDialog(ride);
+    if (confirmed != true || !mounted) return;
+
     setState(() => _isPublishing = true);
     try {
-      final ride = RideModel(
-        id: '',
-        clientId: profile.uid,
-        clientName: profile.name,
-        clientPhone: profile.phoneNumber,
-        type: _selectedType,
-        departureNeighborhood: _departureNeighborhoodController.text.trim(),
-        departureLandmark: _departureLandmarkController.text.trim(),
-        arrivalNeighborhood: _arrivalNeighborhoodController.text.trim(),
-        arrivalLandmark: _arrivalLandmarkController.text.trim(),
-        offeredPrice: double.parse(_priceController.text.trim()),
-        country: profile.country,
-        city: profile.city,
-        createdAt: DateTime.now(),
-      );
-
-      await _rideService.createRideRequest(ride);
-
+      final rideId = await _rideService.createRideRequest(ride);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Votre course a été publiée !')),
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => RideTrackingScreen(rideId: rideId)),
       );
-      Navigator.of(context).pop();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -89,6 +103,45 @@ class _CreateRideScreenState extends State<CreateRideScreen> {
     } finally {
       if (mounted) setState(() => _isPublishing = false);
     }
+  }
+
+  Future<bool?> _showRecapDialog(RideModel ride) {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirmer la course'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(ride.type == 'colis' ? '📦 Colis' : '👥 Passager'),
+            Text(ride.vehicleType == 'moto' ? '🏍️ Moto' : '🚕 Taxi'),
+            const SizedBox(height: 12),
+            Text('${ride.departureNeighborhood} (${ride.departureLandmark})'),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 4),
+              child: Icon(Icons.arrow_downward, size: 16),
+            ),
+            Text('${ride.arrivalNeighborhood} (${ride.arrivalLandmark})'),
+            const SizedBox(height: 12),
+            Text(
+              '${ride.offeredPrice} FCFA',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Modifier'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Confirmer'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -129,20 +182,45 @@ class _CreateRideScreenState extends State<CreateRideScreen> {
                         Row(
                           children: [
                             Expanded(
-                              child: _RideTypeOption(
+                              child: _RideTypeCard(
                                 emoji: '📦',
                                 label: 'Colis',
                                 selected: _selectedType == 'colis',
                                 onTap: () => setState(() => _selectedType = 'colis'),
                               ),
                             ),
-                            const SizedBox(width: 12),
+                            const SizedBox(width: 14),
                             Expanded(
-                              child: _RideTypeOption(
+                              child: _RideTypeCard(
                                 emoji: '👥',
                                 label: 'Passager',
                                 selected: _selectedType == 'passager',
                                 onTap: () => setState(() => _selectedType = 'passager'),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+
+                        _sectionTitle('Véhicule souhaité'),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _RideTypeCard(
+                                emoji: '🏍️',
+                                label: 'Moto',
+                                selected: _selectedVehicleType == 'moto',
+                                onTap: () => setState(() => _selectedVehicleType = 'moto'),
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: _RideTypeCard(
+                                emoji: '🚕',
+                                label: 'Taxi',
+                                selected: _selectedVehicleType == 'taxi',
+                                onTap: () => setState(() => _selectedVehicleType = 'taxi'),
                               ),
                             ),
                           ],
@@ -167,7 +245,7 @@ class _CreateRideScreenState extends State<CreateRideScreen> {
                           decoration: _inputDecoration(
                             label: 'Repère précis',
                             icon: Icons.place_outlined,
-                            hint: 'Ex : devant la pharmacie',
+                            hint: 'Ex : devant la pharmacie, près du terrain de foot',
                           ),
                           validator: (v) => (v == null || v.trim().isEmpty)
                               ? 'Entrez un repère de départ'
@@ -193,7 +271,7 @@ class _CreateRideScreenState extends State<CreateRideScreen> {
                           decoration: _inputDecoration(
                             label: 'Repère précis',
                             icon: Icons.flag_outlined,
-                            hint: 'Ex : près du terrain de foot',
+                            hint: 'Ex : devant la pharmacie, près du terrain de foot',
                           ),
                           validator: (v) => (v == null || v.trim().isEmpty)
                               ? 'Entrez un repère d\'arrivée'
@@ -209,18 +287,30 @@ class _CreateRideScreenState extends State<CreateRideScreen> {
                           decoration: _inputDecoration(
                             label: 'Prix proposé (FCFA)',
                             icon: Icons.payments_outlined,
-                            hint: 'Ex : 1500',
+                            hint: 'Ex : 1000',
                           ),
                           validator: (v) {
                             if (v == null || v.trim().isEmpty) {
                               return 'Entrez un prix';
                             }
-                            final parsed = double.tryParse(v.trim());
-                            if (parsed == null || parsed <= 0) {
-                              return 'Entrez un prix valide';
+                            final parsed = int.tryParse(v.trim());
+                            if (parsed == null || parsed < _kMinPrice) {
+                              return 'Le prix minimum est de $_kMinPrice FCFA';
                             }
                             return null;
                           },
+                        ),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 10,
+                          children: _kQuickPriceSteps
+                              .map(
+                                (step) => OutlinedButton(
+                                  onPressed: () => _bumpPrice(step),
+                                  child: Text('+$step'),
+                                ),
+                              )
+                              .toList(),
                         ),
 
                         const SizedBox(height: 32),
@@ -281,14 +371,14 @@ class _CreateRideScreenState extends State<CreateRideScreen> {
   }
 }
 
-/// Bouton visuel de sélection du type de course (Colis / Passager).
-class _RideTypeOption extends StatelessWidget {
+/// Grande carte cliquable de sélection du type de course (Colis / Passager).
+class _RideTypeCard extends StatelessWidget {
   final String emoji;
   final String label;
   final bool selected;
   final VoidCallback onTap;
 
-  const _RideTypeOption({
+  const _RideTypeCard({
     required this.emoji,
     required this.label,
     required this.selected,
@@ -300,13 +390,13 @@ class _RideTypeOption extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(18),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(vertical: 18),
+        padding: const EdgeInsets.symmetric(vertical: 28),
         decoration: BoxDecoration(
           color: selected ? colorScheme.primaryContainer : colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: selected ? colorScheme.primary : Colors.transparent,
             width: 2,
@@ -314,12 +404,13 @@ class _RideTypeOption extends StatelessWidget {
         ),
         child: Column(
           children: [
-            Text(emoji, style: const TextStyle(fontSize: 28)),
-            const SizedBox(height: 6),
+            Text(emoji, style: const TextStyle(fontSize: 36)),
+            const SizedBox(height: 8),
             Text(
               label,
               style: TextStyle(
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w700,
+                fontSize: 15,
                 color: selected ? colorScheme.onPrimaryContainer : colorScheme.onSurfaceVariant,
               ),
             ),

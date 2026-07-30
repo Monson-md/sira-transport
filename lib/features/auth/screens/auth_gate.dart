@@ -4,6 +4,7 @@ import '../../ride/screens/client_home_screen.dart';
 import '../../ride/screens/driver_dashboard_screen.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
+import 'email_verification_screen.dart';
 import 'login_screen.dart';
 
 /// Point d'entrée de l'application : redirige vers l'écran de connexion
@@ -25,6 +26,10 @@ class AuthGate extends StatelessWidget {
         final user = snapshot.data;
         if (user == null) {
           return const LoginScreen();
+        }
+
+        if (!user.emailVerified) {
+          return EmailVerificationScreen(email: user.email ?? '');
         }
 
         return _RoleBasedHome(uid: user.uid);

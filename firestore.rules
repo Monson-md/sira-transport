@@ -1,69 +1,199 @@
 rules_version = '2';
 
 // ===============================================================
-// Assumed Data Model (sira_transport)
+// Modèle de données (sira_transport)
 // ===============================================================
 //
-// Collection: users
-// Document ID: {uid} (Firebase Auth UID)
-// Fields:
-//   - uid: string (required) - matches document ID
-//   - name: string (required)
-//   - phoneNumber: string (required) - WhatsApp number
-//   - role: string (required) - one of 'client', 'driver_moto', 'driver_taxi'
-//   - country: string (required)
-//   - city: string (required)
-//   - neighborhood: string (required)
-//   - vehicleModel: string (optional) - drivers only
-//   - rating: number (required)
+// users/{uid}
+//   uid, name, phoneNumber, role ('client'|'driver_moto'|'driver_taxi'),
+//   country, city, neighborhood, vehicleModel (drivers only),
+//   rating (double, fixé à 5.0 à la création), ratingCount (int),
+//   verificationStatus ('pending'|'approved'|'rejected' — seule une
+//     Cloud Function admin peut le faire passer à 'approved'/'rejected'),
+//   phoneVerified (bool — ne devient true que si le numéro Firebase Auth
+//     vérifié correspond au numéro du profil).
 //
-// Collection: rides
-// Document ID: {rideId} (auto-generated)
-// Fields:
-//   - id: string (required) - matches document ID
-//   - clientId: string (required) - uid of the requester
-//   - clientName: string (required)
-//   - clientPhone: string (required)
-//   - type: string (required) - 'colis' or 'passager'
-//   - departureNeighborhood: string (required)
-//   - departureLandmark: string (required)
-//   - arrivalNeighborhood: string (required)
-//   - arrivalLandmark: string (required)
-//   - offeredPrice: number (required)
-//   - status: string (required) - 'pending', 'accepted', 'completed', 'cancelled'
-//   - driverId: string (optional) - set by the driver who accepts
-//   - country: string (required)
-//   - city: string (required)
-//   - createdAt: timestamp (required)
+// rides/{rideId}
+//   clientId, clientName, clientPhone, type ('colis'|'passager'),
+//   departureNeighborhood, departureLandmark, arrivalNeighborhood,
+//   arrivalLandmark, offeredPrice (int FCFA), status
+//   ('pending'|'accepted'|'completed'|'cancelled'), driverId/driverName/
+//   driverPhone, vehicleType ('moto'|'taxi'|'any'), country, city,
+//   platformFee (int, 0 tant que la V2 payante n'existe pas),
+//   createdAt/acceptedAt/completedAt/cancelledAt (Timestamp, toujours
+//   FieldValue.serverTimestamp() côté client).
 //
-// ===============================================================
-// Development note (read this before going to production):
-//
-// These rules only require the caller to be an authenticated Firebase user.
-// They intentionally do NOT enforce field-level validation, ownership, or
-// PII protection yet — they exist to unblock local development/testing
-// (e.g. a driver accepting another user's ride requires cross-user writes).
-// Before sharing the app broadly, harden these rules: restrict "users" reads
-// to the owner (or a public-safe subset), validate ride field shapes/enums,
-// and prevent a ride's clientId/price from being rewritten after creation.
+// driver_documents/{docId}
+//   driverId, type ('identity'|'license'|'vehicle_registration'|
+//   'vehicle_photo'), storagePath, status ('pending_review'|'approved'|
+//   'rejected' — modifiable uniquement par une Cloud Function admin),
+//   uploadedAt (Timestamp).
 // ===============================================================
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function isAuthenticated() {
+    function signedIn() {
       return request.auth != null;
     }
 
-    // Profils utilisateurs : lecture/écriture pour tout utilisateur connecté.
-    match /users/{userId} {
-      allow read, write: if isAuthenticated();
+    // Profil de l'appelant. Coûte une lecture Firestore supplémentaire à
+    // chaque évaluation qui l'utilise — accepté ici pour pouvoir vérifier
+    // rôle/ville/pays sans les faire confirmer par le client lui-même.
+    function me() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
-    // Courses : lecture/écriture pour tout utilisateur connecté (le client
-    // publie, un chauffeur différent accepte puis termine la course).
+    function isAdmin() {
+      return signedIn() && request.auth.token.admin == true;
+    }
+
+    function isDriverRole(role) {
+      return role in ['driver_moto', 'driver_taxi'];
+    }
+
+    function approvedDriver() {
+      return signedIn()
+        && isDriverRole(me().role)
+        && me().verificationStatus == 'approved';
+    }
+
+    function isNonEmptyString(v) {
+      return v is string && v.size() > 0;
+    }
+
+    // Le badge "numéro vérifié" ne peut être posé que si le token d'auth
+    // (rafraîchi après linkWithCredential) prouve un numéro vérifié
+    // identique à celui du profil. Il retombe à false si le client change
+    // son numéro (on ne garde jamais un badge pour un numéro qui n'a plus
+    // été vérifié), et ne peut jamais être retiré autrement.
+    function phoneVerifiedChangeIsValid() {
+      return request.resource.data.phoneVerified == resource.data.phoneVerified
+        || (request.resource.data.phoneVerified == true
+            && request.auth.token.phone_number == request.resource.data.phoneNumber)
+        || (request.resource.data.phoneVerified == false
+            && request.resource.data.phoneNumber != resource.data.phoneNumber);
+    }
+
+    // ---------------- users ----------------
+    match /users/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+
+      allow create: if signedIn() && request.auth.uid == uid
+                    && request.resource.data.uid == uid
+                    && request.resource.data.role in ['client', 'driver_moto', 'driver_taxi']
+                    && isNonEmptyString(request.resource.data.name)
+                    && isNonEmptyString(request.resource.data.phoneNumber)
+                    && isNonEmptyString(request.resource.data.country)
+                    && isNonEmptyString(request.resource.data.city)
+                    && isNonEmptyString(request.resource.data.neighborhood)
+                    && (isDriverRole(request.resource.data.role)
+                        ? isNonEmptyString(request.resource.data.vehicleModel)
+                        : request.resource.data.vehicleModel == null)
+                    && request.resource.data.rating == 5.0
+                    && request.resource.data.ratingCount == 0
+                    && request.resource.data.phoneVerified == false
+                    && request.resource.data.verificationStatus ==
+                        (isDriverRole(request.resource.data.role) ? 'pending' : 'approved');
+
+      allow update: if signedIn() && request.auth.uid == uid
+                    && request.resource.data.uid == resource.data.uid
+                    && request.resource.data.role == resource.data.role
+                    && request.resource.data.verificationStatus == resource.data.verificationStatus
+                    && request.resource.data.rating == resource.data.rating
+                    && request.resource.data.ratingCount == resource.data.ratingCount
+                    && phoneVerifiedChangeIsValid();
+
+      allow delete: if false;
+    }
+
+    // ---------------- rides ----------------
     match /rides/{rideId} {
-      allow read, write: if isAuthenticated();
+      allow create: if signedIn()
+                    && request.resource.data.clientId == request.auth.uid
+                    && request.resource.data.clientName == me().name
+                    && request.resource.data.clientPhone == me().phoneNumber
+                    && request.resource.data.status == 'pending'
+                    && request.resource.data.driverId == null
+                    && request.resource.data.driverName == null
+                    && request.resource.data.driverPhone == null
+                    && request.resource.data.platformFee == 0
+                    && request.resource.data.offeredPrice is int
+                    && request.resource.data.offeredPrice >= 100
+                    && request.resource.data.type in ['colis', 'passager']
+                    && request.resource.data.vehicleType in ['moto', 'taxi', 'any']
+                    && isNonEmptyString(request.resource.data.departureNeighborhood)
+                    && isNonEmptyString(request.resource.data.departureLandmark)
+                    && isNonEmptyString(request.resource.data.arrivalNeighborhood)
+                    && isNonEmptyString(request.resource.data.arrivalLandmark)
+                    && isNonEmptyString(request.resource.data.country)
+                    && isNonEmptyString(request.resource.data.city)
+                    && request.resource.data.createdAt == request.time
+                    && request.resource.data.acceptedAt == null
+                    && request.resource.data.completedAt == null
+                    && request.resource.data.cancelledAt == null;
+
+      allow read: if signedIn() && (
+                       resource.data.clientId == request.auth.uid
+                    || resource.data.driverId == request.auth.uid
+                    || (approvedDriver()
+                        && resource.data.status == 'pending'
+                        && resource.data.country == me().country
+                        && resource.data.city == me().city)
+                  );
+
+      // Acceptation par un chauffeur vérifié : premier arrivé, premier
+      // servi — la condition resource.data.status == 'pending' est ce qui
+      // empêche deux chauffeurs de accepter la même course (à combiner
+      // côté client avec une transaction, cf. RideService.acceptRide).
+      allow update: if approvedDriver()
+                    && resource.data.status == 'pending'
+                    && request.resource.data.status == 'accepted'
+                    && request.resource.data.driverId == request.auth.uid
+                    && request.resource.data.driverName == me().name
+                    && request.resource.data.driverPhone == me().phoneNumber
+                    && request.resource.data.acceptedAt == request.time
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                        .hasOnly(['status', 'driverId', 'driverName', 'driverPhone', 'acceptedAt']);
+
+      // Fin de course par le chauffeur assigné.
+      allow update: if signedIn()
+                    && resource.data.driverId == request.auth.uid
+                    && resource.data.status == 'accepted'
+                    && request.resource.data.status == 'completed'
+                    && request.resource.data.completedAt == request.time
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                        .hasOnly(['status', 'completedAt']);
+
+      // Annulation par le client, tant que personne n'a accepté.
+      allow update: if signedIn()
+                    && resource.data.clientId == request.auth.uid
+                    && resource.data.status == 'pending'
+                    && request.resource.data.status == 'cancelled'
+                    && request.resource.data.cancelledAt == request.time
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                        .hasOnly(['status', 'cancelledAt']);
+
+      allow delete: if false;
+    }
+
+    // ---------------- driver_documents ----------------
+    match /driver_documents/{docId} {
+      allow read: if signedIn() && (resource.data.driverId == request.auth.uid || isAdmin());
+
+      allow create: if signedIn()
+                    && request.resource.data.driverId == request.auth.uid
+                    && isDriverRole(me().role)
+                    && request.resource.data.type in
+                        ['identity', 'license', 'vehicle_registration', 'vehicle_photo']
+                    && isNonEmptyString(request.resource.data.storagePath)
+                    && request.resource.data.status == 'pending_review'
+                    && request.resource.data.uploadedAt == request.time;
+
+      // Le passage à 'approved'/'rejected' ne se fait que par une Cloud
+      // Function admin (Admin SDK, qui n'est pas soumis à ces règles).
+      allow update: if false;
+      allow delete: if false;
     }
   }
 }

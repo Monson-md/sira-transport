@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Requis par image_picker pour la prise de photo des pièces chauffeur -->
+    <uses-permission android:name="android.permission.CAMERA" />
     <application
         android:label="sira_transport"
         android:name="${applicationName}"

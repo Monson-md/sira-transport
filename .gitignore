@@ -43,3 +43,21 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Cloud Functions
+functions/node_modules/
+functions/lib/
+
+# Firestore rules tests
+firestore-tests/node_modules/
+
+# Secrets — ne jamais committer une clé de compte de service
+serviceAccountKey*.json
+*-firebase-adminsdk-*.json
+
+# Firebase emulators
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+.firebase/
+emulator-data/

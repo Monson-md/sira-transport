@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
+import 'phone_verification_screen.dart';
 
 const Map<String, String> _kRoleLabels = {
   'client': 'Client (Vendeur / Passager)',
   'driver_moto': 'Conducteur Moto-Taxi',
   'driver_taxi': 'Conducteur Taxi Voiture',
+};
+
+const Map<String, String> _kVerificationLabels = {
+  'pending': 'En attente de validation',
+  'approved': 'Compte vérifié',
+  'rejected': 'Vérification refusée',
 };
 
 class ProfileScreen extends StatefulWidget {
@@ -101,7 +108,51 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                   ),
                 ),
-                const SizedBox(height: 28),
+                const SizedBox(height: 20),
+                if (isDriver)
+                  Center(
+                    child: Chip(
+                      label: Text(_kVerificationLabels[profile.verificationStatus] ??
+                          profile.verificationStatus),
+                      backgroundColor: profile.verificationStatus == 'approved'
+                          ? Colors.green.withValues(alpha: 0.15)
+                          : Theme.of(context).colorScheme.surfaceContainerHighest,
+                    ),
+                  ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Icon(
+                      profile.phoneVerified ? Icons.verified : Icons.error_outline,
+                      color: profile.phoneVerified
+                          ? Colors.green
+                          : Theme.of(context).colorScheme.error,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        profile.phoneVerified
+                            ? 'Numéro WhatsApp vérifié'
+                            : 'Numéro WhatsApp non vérifié',
+                      ),
+                    ),
+                    if (!profile.phoneVerified)
+                      TextButton(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => PhoneVerificationScreen(
+                                initialPhoneNumber: profile.phoneNumber,
+                              ),
+                            ),
+                          );
+                        },
+                        child: const Text('Vérifier'),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 16),
                 _InfoTile(
                   icon: Icons.badge_outlined,
                   label: 'Rôle',

@@ -45,5 +45,9 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Sira Transport a besoin de l'appareil photo pour envoyer vos pièces (identité, permis, carte grise, véhicule).</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Sira Transport a besoin d'accéder à vos photos pour envoyer vos pièces (identité, permis, carte grise, véhicule).</string>
 </dict>
 </plist>

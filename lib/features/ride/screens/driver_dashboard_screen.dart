@@ -3,8 +3,16 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../auth/models/user_model.dart';
 import '../../auth/services/auth_service.dart';
 import '../../auth/screens/profile_screen.dart';
+import '../../verification/screens/driver_documents_screen.dart';
 import '../models/ride_model.dart';
 import '../services/ride_service.dart';
+
+const Map<String, String> _kVerificationMessages = {
+  'pending': 'Ton dossier est en cours de contrôle. Tu recevras les courses '
+      'dès qu\'il sera validé — en général sous 24 h.',
+  'rejected': 'Ta vérification a été refusée. Renvoie les pièces demandées '
+      'pour recevoir des courses.',
+};
 
 String _vehicleTypeForRole(String role) {
   switch (role) {
@@ -145,6 +153,13 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
             );
           }
 
+          // Un chauffeur non vérifié ne peut pas interroger les courses
+          // disponibles : firestore.rules l'interdit (approvedDriver()).
+          // On le sait avant même d'essayer, pour éviter un permission-denied.
+          if (profile.verificationStatus != 'approved') {
+            return _PendingVerificationView(verificationStatus: profile.verificationStatus);
+          }
+
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
@@ -249,6 +264,56 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
 
 extension _FirstOrNull<T> on Iterable<T> {
   T? get firstOrNull => isEmpty ? null : first;
+}
+
+class _PendingVerificationView extends StatelessWidget {
+  final String verificationStatus;
+
+  const _PendingVerificationView({required this.verificationStatus});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              verificationStatus == 'rejected' ? Icons.error_outline : Icons.hourglass_top,
+              size: 48,
+              color: verificationStatus == 'rejected' ? colorScheme.error : colorScheme.primary,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              verificationStatus == 'rejected'
+                  ? 'Vérification refusée'
+                  : 'En attente de vérification',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _kVerificationMessages[verificationStatus] ??
+                  'Ton dossier est en cours de contrôle.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const DriverDocumentsScreen()),
+                );
+              },
+              icon: const Icon(Icons.upload_file_outlined),
+              label: const Text('Gérer mes pièces'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _AvailableRideCard extends StatelessWidget {

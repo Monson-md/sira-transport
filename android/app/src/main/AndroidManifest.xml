@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Requis par image_picker pour la prise de photo des pièces chauffeur -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Requis à partir d'Android 13 pour afficher les notifications de course -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <application
         android:label="sira_transport"
         android:name="${applicationName}"
@@ -32,6 +34,11 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- Canal utilisé par FCM pour afficher une notification quand
+             l'app est fermée (créé côté Dart, voir NotificationService). -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="rides_urgent" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

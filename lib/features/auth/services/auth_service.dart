@@ -131,6 +131,17 @@ class AuthService {
     await _auth.signOut();
   }
 
+  // ---------------- Notifications push ----------------
+
+  /// Enregistre le token FCM de l'appareil sur le profil de l'utilisateur
+  /// connecté. Appelé par NotificationService à la connexion et à chaque
+  /// rafraîchissement de token (onTokenRefresh).
+  Future<void> updateFcmToken(String token) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return;
+    await _firestore.collection('users').doc(uid).update({'fcmToken': token});
+  }
+
   // Récupérer les données Firestore de l'utilisateur connecté
   Future<UserModel?> getUserData(String uid) async {
     final DocumentSnapshot doc =

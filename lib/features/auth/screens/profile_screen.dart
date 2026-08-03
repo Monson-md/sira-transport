@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../notifications/services/notification_service.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import 'phone_verification_screen.dart';
@@ -42,6 +43,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _signOut() async {
     setState(() => _isSigningOut = true);
     try {
+      await NotificationService().unsubscribeCurrentTopic();
       await _authService.signOut();
       // AuthGate réagit automatiquement via authStateChanges() et affiche
       // l'écran de connexion ; on referme cet écran de profil s'il était empilé.

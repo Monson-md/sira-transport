@@ -11,7 +11,10 @@ rules_version = '2';
 //   verificationStatus ('pending'|'approved'|'rejected' — seule une
 //     Cloud Function admin peut le faire passer à 'approved'/'rejected'),
 //   phoneVerified (bool — ne devient true que si le numéro Firebase Auth
-//     vérifié correspond au numéro du profil).
+//     vérifié correspond au numéro du profil),
+//   fcmToken (string optionnel — dernier token FCM connu de l'appareil,
+//     mis à jour par NotificationService, aucune règle dédiée : couvert
+//     par la règle update générale sur les champs non verrouillés).
 //
 // rides/{rideId}
 //   clientId, clientName, clientPhone, type ('colis'|'passager'),
@@ -22,6 +25,12 @@ rules_version = '2';
 //   platformFee (int, 0 tant que la V2 payante n'existe pas),
 //   createdAt/acceptedAt/completedAt/cancelledAt (Timestamp, toujours
 //   FieldValue.serverTimestamp() côté client).
+//
+// rides/{rideId}/messages/{messageId}
+//   senderId, text (string, 1 à 1000 caractères), createdAt (Timestamp,
+//   toujours FieldValue.serverTimestamp() côté client). Lecture/écriture
+//   réservées au client et au chauffeur de la course, uniquement tant
+//   qu'elle est 'accepted'.
 //
 // driver_documents/{docId}
 //   driverId, type ('identity'|'license'|'vehicle_registration'|
@@ -174,6 +183,42 @@ service cloud.firestore {
                     && request.resource.data.diff(resource.data).affectedKeys()
                         .hasOnly(['status', 'cancelledAt']);
 
+      // Le client augmente son offre pendant l'attente, pour attirer un
+      // chauffeur — jamais à la baisse, jamais après qu'un chauffeur ait
+      // accepté, et rien d'autre que offeredPrice ne bouge.
+      allow update: if signedIn()
+                    && resource.data.clientId == request.auth.uid
+                    && resource.data.status == 'pending'
+                    && request.resource.data.status == 'pending'
+                    && request.resource.data.offeredPrice is int
+                    && request.resource.data.offeredPrice > resource.data.offeredPrice
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                        .hasOnly(['offeredPrice']);
+
+      allow delete: if false;
+    }
+
+    // ---------------- rides/{rideId}/messages ----------------
+    match /rides/{rideId}/messages/{messageId} {
+      function ride() {
+        return get(/databases/$(database)/documents/rides/$(rideId)).data;
+      }
+
+      function isRideParty() {
+        return signedIn()
+          && (ride().clientId == request.auth.uid || ride().driverId == request.auth.uid);
+      }
+
+      allow read: if isRideParty();
+
+      allow create: if isRideParty()
+                    && ride().status == 'accepted'
+                    && request.resource.data.senderId == request.auth.uid
+                    && isNonEmptyString(request.resource.data.text)
+                    && request.resource.data.text.size() <= 1000
+                    && request.resource.data.createdAt == request.time;
+
+      allow update: if false;
       allow delete: if false;
     }
 

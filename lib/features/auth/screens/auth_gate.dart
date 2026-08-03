@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../notifications/services/notification_service.dart';
 import '../../ride/screens/client_home_screen.dart';
 import '../../ride/screens/driver_dashboard_screen.dart';
 import '../models/user_model.dart';
@@ -54,7 +55,12 @@ class _RoleBasedHomeState extends State<_RoleBasedHome> {
   @override
   void initState() {
     super.initState();
-    _profileFuture = _authService.getUserData(widget.uid);
+    _profileFuture = _authService.getUserData(widget.uid).then((profile) {
+      if (profile != null) {
+        NotificationService().registerForCurrentUser(profile);
+      }
+      return profile;
+    });
   }
 
   @override

@@ -21,6 +21,10 @@ class UserModel {
   // linkWithCredential) : voir PhoneVerificationService.
   final bool phoneVerified;
 
+  // Dernier token FCM connu de l'appareil de l'utilisateur, mis à jour par
+  // NotificationService à la connexion et à chaque rafraîchissement.
+  final String? fcmToken;
+
   UserModel({
     required this.uid,
     required this.name,
@@ -34,6 +38,7 @@ class UserModel {
     this.ratingCount = 0,
     required this.verificationStatus,
     this.phoneVerified = false,
+    this.fcmToken,
   });
 
   // Convertir un document Firestore en objet de notre modèle
@@ -51,6 +56,7 @@ class UserModel {
       ratingCount: (map['ratingCount'] as num?)?.toInt() ?? 0,
       verificationStatus: map['verificationStatus'] ?? 'approved',
       phoneVerified: map['phoneVerified'] ?? false,
+      fcmToken: map['fcmToken'],
     );
   }
 
@@ -69,6 +75,7 @@ class UserModel {
       'ratingCount': ratingCount,
       'verificationStatus': verificationStatus,
       'phoneVerified': phoneVerified,
+      'fcmToken': fcmToken,
     };
   }
 }

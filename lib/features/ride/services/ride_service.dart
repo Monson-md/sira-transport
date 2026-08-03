@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../auth/models/user_model.dart';
+import '../models/ride_message_model.dart';
 import '../models/ride_model.dart';
 
 /// Levée par [RideService.acceptRide] quand un autre chauffeur a déjà
@@ -111,6 +112,37 @@ class RideService {
     await _ridesRef.doc(rideId).update({
       'status': 'cancelled',
       'cancelledAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Le client augmente son offre pour attirer un chauffeur, tant que la
+  /// course est toujours 'pending' (firestore.rules l'impose aussi côté
+  /// serveur : uniquement à la hausse, uniquement ce champ).
+  Future<void> increaseOfferedPrice(String rideId, int newPrice) async {
+    await _ridesRef.doc(rideId).update({'offeredPrice': newPrice});
+  }
+
+  /// Flux temps réel des messages d'une course, du plus ancien au plus
+  /// récent. firestore.rules restreint la lecture au client et au
+  /// chauffeur de cette course, une fois 'accepted'.
+  Stream<List<RideMessageModel>> watchMessages(String rideId) {
+    return _ridesRef
+        .doc(rideId)
+        .collection('messages')
+        .orderBy('createdAt')
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => RideMessageModel.fromMap(doc.id, doc.data()))
+            .toList());
+  }
+
+  /// Envoie un message dans le chat d'une course. createdAt est fixé côté
+  /// serveur via FieldValue.serverTimestamp().
+  Future<void> sendMessage(String rideId, String senderId, String text) async {
+    await _ridesRef.doc(rideId).collection('messages').add({
+      'senderId': senderId,
+      'text': text,
+      'createdAt': FieldValue.serverTimestamp(),
     });
   }
 

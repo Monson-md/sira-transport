@@ -243,3 +243,138 @@ describe('rides — transitions de statut', () => {
     );
   });
 });
+
+describe('rides — augmentation de l\'offre', () => {
+  test('le client peut augmenter son offre tant que la course est pending', async () => {
+    await seed(async (db) => {
+      await db.collection('users').doc(CLIENT_A).set(userDoc({ uid: CLIENT_A }));
+      await db.collection('rides').doc('ride-1').set(rideDoc({ clientId: CLIENT_A, offeredPrice: 1000 }));
+    });
+
+    const clientA = testEnv.authenticatedContext(CLIENT_A).firestore();
+    await assertSucceeds(
+      clientA.collection('rides').doc('ride-1').update({ offeredPrice: 1500 })
+    );
+  });
+
+  test("le client ne peut pas baisser son offre", async () => {
+    await seed(async (db) => {
+      await db.collection('users').doc(CLIENT_A).set(userDoc({ uid: CLIENT_A }));
+      await db.collection('rides').doc('ride-1').set(rideDoc({ clientId: CLIENT_A, offeredPrice: 1000 }));
+    });
+
+    const clientA = testEnv.authenticatedContext(CLIENT_A).firestore();
+    await assertFails(
+      clientA.collection('rides').doc('ride-1').update({ offeredPrice: 500 })
+    );
+  });
+
+  test("le client ne peut pas augmenter l'offre d'une course déjà acceptée", async () => {
+    await seed(async (db) => {
+      await db.collection('users').doc(CLIENT_A).set(userDoc({ uid: CLIENT_A }));
+      await db.collection('rides').doc('ride-1').set(
+        rideDoc({
+          clientId: CLIENT_A,
+          offeredPrice: 1000,
+          status: 'accepted',
+          driverId: DRIVER_APPROVED_BAMAKO,
+        })
+      );
+    });
+
+    const clientA = testEnv.authenticatedContext(CLIENT_A).firestore();
+    await assertFails(
+      clientA.collection('rides').doc('ride-1').update({ offeredPrice: 1500 })
+    );
+  });
+
+  test("le client ne peut pas modifier un autre champ en même temps que le prix", async () => {
+    await seed(async (db) => {
+      await db.collection('users').doc(CLIENT_A).set(userDoc({ uid: CLIENT_A }));
+      await db.collection('rides').doc('ride-1').set(rideDoc({ clientId: CLIENT_A, offeredPrice: 1000 }));
+    });
+
+    const clientA = testEnv.authenticatedContext(CLIENT_A).firestore();
+    await assertFails(
+      clientA
+        .collection('rides')
+        .doc('ride-1')
+        .update({ offeredPrice: 1500, arrivalNeighborhood: 'Ailleurs' })
+    );
+  });
+});
+
+describe('rides/{rideId}/messages', () => {
+  async function seedAcceptedRide() {
+    await seed(async (db) => {
+      await db.collection('users').doc(CLIENT_A).set(userDoc({ uid: CLIENT_A }));
+      await db.collection('users').doc(DRIVER_APPROVED_BAMAKO).set(
+        userDoc({ uid: DRIVER_APPROVED_BAMAKO, role: 'driver_moto', verificationStatus: 'approved' })
+      );
+      await db.collection('rides').doc('ride-1').set(
+        rideDoc({
+          clientId: CLIENT_A,
+          status: 'accepted',
+          driverId: DRIVER_APPROVED_BAMAKO,
+          driverName: 'Test User',
+          driverPhone: '+22370000000',
+        })
+      );
+    });
+  }
+
+  test('le client et le chauffeur de la course peuvent écrire un message une fois acceptée', async () => {
+    await seedAcceptedRide();
+
+    const clientA = testEnv.authenticatedContext(CLIENT_A).firestore();
+    await assertSucceeds(
+      clientA
+        .collection('rides')
+        .doc('ride-1')
+        .collection('messages')
+        .add({ senderId: CLIENT_A, text: 'Bonjour', createdAt: serverTimestamp() })
+    );
+
+    const driver = testEnv.authenticatedContext(DRIVER_APPROVED_BAMAKO).firestore();
+    await assertSucceeds(
+      driver
+        .collection('rides')
+        .doc('ride-1')
+        .collection('messages')
+        .add({ senderId: DRIVER_APPROVED_BAMAKO, text: "J'arrive", createdAt: serverTimestamp() })
+    );
+  });
+
+  test("un tiers ne peut pas lire ni écrire dans le chat d'une course", async () => {
+    await seedAcceptedRide();
+    await seed(async (db) => {
+      await db.collection('users').doc(CLIENT_B).set(userDoc({ uid: CLIENT_B }));
+    });
+
+    const clientB = testEnv.authenticatedContext(CLIENT_B).firestore();
+    await assertFails(
+      clientB
+        .collection('rides')
+        .doc('ride-1')
+        .collection('messages')
+        .add({ senderId: CLIENT_B, text: 'Intrus', createdAt: serverTimestamp() })
+    );
+    await assertFails(clientB.collection('rides').doc('ride-1').collection('messages').get());
+  });
+
+  test("le chat reste fermé tant que la course n'est pas acceptée", async () => {
+    await seed(async (db) => {
+      await db.collection('users').doc(CLIENT_A).set(userDoc({ uid: CLIENT_A }));
+      await db.collection('rides').doc('ride-1').set(rideDoc({ clientId: CLIENT_A, status: 'pending' }));
+    });
+
+    const clientA = testEnv.authenticatedContext(CLIENT_A).firestore();
+    await assertFails(
+      clientA
+        .collection('rides')
+        .doc('ride-1')
+        .collection('messages')
+        .add({ senderId: CLIENT_A, text: 'Bonjour', createdAt: serverTimestamp() })
+    );
+  });
+});

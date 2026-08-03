@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../auth/models/user_model.dart';
 import '../../auth/services/auth_service.dart';
 import '../models/ride_model.dart';
 import '../services/ride_service.dart';
+import 'ride_chat_screen.dart';
 
 /// Écran de suivi d'une course côté client, branché en temps réel sur
 /// [RideService.watchRide]. Le numéro du chauffeur n'apparaît que lorsque
@@ -20,6 +23,7 @@ class RideTrackingScreen extends StatefulWidget {
 class _RideTrackingScreenState extends State<RideTrackingScreen> {
   final _rideService = RideService();
   bool _isCancelling = false;
+  bool _isIncreasingPrice = false;
 
   Future<void> _cancel(String rideId) async {
     setState(() => _isCancelling = true);
@@ -33,6 +37,20 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
         SnackBar(content: Text('Erreur : ${e.toString()}')),
       );
       setState(() => _isCancelling = false);
+    }
+  }
+
+  Future<void> _increasePrice(RideModel ride) async {
+    setState(() => _isIncreasingPrice = true);
+    try {
+      await _rideService.increaseOfferedPrice(ride.id, ride.offeredPrice + 500);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur : ${e.toString()}')),
+      );
+    } finally {
+      if (mounted) setState(() => _isIncreasingPrice = false);
     }
   }
 
@@ -66,6 +84,8 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
                 ride: ride,
                 isCancelling: _isCancelling,
                 onCancel: () => _cancel(ride.id),
+                isIncreasingPrice: _isIncreasingPrice,
+                onIncreasePrice: () => _increasePrice(ride),
               );
           }
         },
@@ -74,20 +94,68 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
   }
 }
 
-class _PendingView extends StatelessWidget {
+/// Écran d'attente qui reste vivant : chrono d'attente, message qui évolue,
+/// et bouton pour augmenter l'offre après 3 minutes sans réponse — pour
+/// que le client ne se demande jamais si l'app est plantée.
+class _PendingView extends StatefulWidget {
   final RideModel ride;
   final bool isCancelling;
   final VoidCallback onCancel;
+  final bool isIncreasingPrice;
+  final VoidCallback onIncreasePrice;
 
   const _PendingView({
     required this.ride,
     required this.isCancelling,
     required this.onCancel,
+    required this.isIncreasingPrice,
+    required this.onIncreasePrice,
   });
+
+  @override
+  State<_PendingView> createState() => _PendingViewState();
+}
+
+class _PendingViewState extends State<_PendingView> {
+  static const _messageThreshold = Duration(minutes: 2);
+  static const _increaseOfferThreshold = Duration(minutes: 3);
+
+  Timer? _timer;
+  Duration _elapsed = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _updateElapsed();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) => _updateElapsed());
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  void _updateElapsed() {
+    final createdAt = widget.ride.createdAt;
+    if (createdAt == null) return;
+    setState(() => _elapsed = DateTime.now().difference(createdAt));
+  }
+
+  String _formattedElapsed() {
+    final minutes = _elapsed.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = _elapsed.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final ride = widget.ride;
+    final searchMessage = _elapsed >= _messageThreshold
+        ? 'Toujours en recherche, essaie d\'augmenter ton prix ?'
+        : 'Recherche d\'un chauffeur…';
+
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -100,11 +168,21 @@ class _PendingView extends StatelessWidget {
               child: CircularProgressIndicator(color: colorScheme.primary),
             ),
             const SizedBox(height: 24),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 400),
+              child: Text(
+                searchMessage,
+                key: ValueKey(searchMessage),
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+            ),
+            const SizedBox(height: 8),
             Text(
-              'Recherche d\'un chauffeur…',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              'Depuis ${_formattedElapsed()}',
+              style: TextStyle(color: colorScheme.onSurfaceVariant),
             ),
             const SizedBox(height: 24),
             Card(
@@ -127,16 +205,34 @@ class _PendingView extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 24),
+            if (_elapsed >= _increaseOfferThreshold) ...[
+              FilledButton.icon(
+                onPressed: widget.isIncreasingPrice ? null : widget.onIncreasePrice,
+                icon: widget.isIncreasingPrice
+                    ? const SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.trending_up),
+                label: const Text('Augmenter mon offre de 500 F'),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 50),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
             OutlinedButton(
-              onPressed: isCancelling ? null : onCancel,
+              onPressed: widget.isCancelling ? null : widget.onCancel,
               style: OutlinedButton.styleFrom(
                 foregroundColor: colorScheme.error,
                 side: BorderSide(color: colorScheme.error),
                 minimumSize: const Size(double.infinity, 50),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              child: isCancelling
+              child: widget.isCancelling
                   ? const SizedBox(
                       height: 18,
                       width: 18,
@@ -275,6 +371,26 @@ class _AcceptedView extends StatelessWidget {
                 ),
               ],
             ),
+          if (driverId != null) ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => RideChatScreen(
+                    rideId: ride.id,
+                    currentUserId: ride.clientId,
+                    otherPartyName: driverName,
+                  ),
+                ),
+              ),
+              icon: const Icon(Icons.chat_bubble_outline),
+              label: const Text('Chat'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 46),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ],
           const SizedBox(height: 20),
           Card(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),

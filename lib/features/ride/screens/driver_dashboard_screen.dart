@@ -3,9 +3,11 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../auth/models/user_model.dart';
 import '../../auth/services/auth_service.dart';
 import '../../auth/screens/profile_screen.dart';
+import '../../notifications/services/notification_service.dart';
 import '../../verification/screens/driver_documents_screen.dart';
 import '../models/ride_model.dart';
 import '../services/ride_service.dart';
+import 'ride_chat_screen.dart';
 
 const Map<String, String> _kVerificationMessages = {
   'pending': 'Ton dossier est en cours de contrôle. Tu recevras les courses '
@@ -76,7 +78,13 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
   Future<UserModel?> _loadProfile() async {
     final uid = _authService.currentUser?.uid;
     if (uid == null) return null;
-    return _authService.getUserData(uid);
+    final profile = await _authService.getUserData(uid);
+    // Un chauffeur non vérifié n'a pas le droit d'interroger les courses
+    // disponibles (firestore.rules), donc pas de topic pertinent pour lui.
+    if (profile != null && profile.verificationStatus == 'approved') {
+      await NotificationService().syncTopicForDriver(profile);
+    }
+    return profile;
   }
 
   void _openProfile() {
@@ -505,6 +513,25 @@ class _AcceptedRideCard extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 10),
+            if (ride.driverId != null)
+              OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => RideChatScreen(
+                      rideId: ride.id,
+                      currentUserId: ride.driverId!,
+                      otherPartyName: ride.clientName,
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                label: const Text('Discuter avec le client'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 46),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
             const SizedBox(height: 10),
             FilledButton(
               onPressed: isActionLoading ? null : onComplete,

@@ -1,4 +1,5 @@
 import { initializeApp } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 import { FieldValue, Timestamp, getFirestore } from 'firebase-admin/firestore';
 import { getMessaging } from 'firebase-admin/messaging';
 import * as logger from 'firebase-functions/logger';
@@ -81,6 +82,32 @@ export const rejectDriver = onCall(async (request) => {
   await batch.commit();
 
   return { driverId, verificationStatus: 'rejected' };
+});
+
+/**
+ * Supprime définitivement le compte de l'appelant (profil, pièces
+ * chauffeur, compte Firebase Auth). Passe par l'Admin SDK car
+ * firestore.rules n'autorise aucune suppression depuis l'app, et la
+ * suppression du compte Auth lui-même n'est de toute façon accessible
+ * qu'au SDK admin. Ne touche pas aux rides/ratings existants : les
+ * supprimer casserait l'historique de l'autre partie (client ou
+ * chauffeur) impliquée dans ces courses.
+ */
+export const deleteMyAccount = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Connexion requise.');
+  }
+  const uid = request.auth.uid;
+
+  const driverDocs = await db.collection('driver_documents').where('driverId', '==', uid).get();
+  const batch = db.batch();
+  driverDocs.forEach((doc) => batch.delete(doc.ref));
+  batch.delete(db.collection('users').doc(uid));
+  await batch.commit();
+
+  await getAuth().deleteUser(uid);
+
+  return { deleted: true };
 });
 
 // ===============================================================
@@ -234,6 +261,38 @@ export const onRideCompleted = onDocumentUpdated('rides/{rideId}', async (event)
   if (before.status === 'completed' || after.status !== 'completed') return;
 
   await notifyClient(after.clientId, 'Course terminée', 'Notez votre chauffeur', event.params.rideId, 'ride_completed');
+});
+
+// ===============================================================
+// Notation
+// ===============================================================
+
+/**
+ * Recalcule rating/ratingCount du chauffeur à chaque nouvel avis.
+ * firestore.rules verrouille ces deux champs contre toute écriture
+ * cliente sur users/{uid} — ce trigger, exécuté avec l'Admin SDK, est le
+ * seul chemin qui puisse les changer. Moyenne glissante en transaction
+ * pour rester correcte si deux avis arrivent en même temps.
+ */
+export const onRatingCreated = onDocumentCreated('ratings/{rideId}', async (event) => {
+  const snap = event.data;
+  if (!snap) return;
+
+  const rating = snap.data() as { driverId: string; stars: number };
+  const driverRef = db.collection('users').doc(rating.driverId);
+
+  await db.runTransaction(async (tx) => {
+    const driverSnap = await tx.get(driverRef);
+    if (!driverSnap.exists) return;
+
+    const data = driverSnap.data() as { rating?: number; ratingCount?: number };
+    const previousCount = data.ratingCount ?? 0;
+    const previousRating = data.rating ?? 5.0;
+    const newCount = previousCount + 1;
+    const newRating = (previousRating * previousCount + rating.stars) / newCount;
+
+    tx.update(driverRef, { rating: newRating, ratingCount: newCount });
+  });
 });
 
 /**

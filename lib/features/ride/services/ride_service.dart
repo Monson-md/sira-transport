@@ -174,6 +174,26 @@ class RideService {
     });
   }
 
+  /// Note le chauffeur d'une course terminée. Un seul avis par course :
+  /// le document est identifié par rideId, et firestore.rules interdit
+  /// toute modification une fois créé — une seconde tentative échoue.
+  /// rating/ratingCount du chauffeur sont recalculés par une Cloud
+  /// Function déclenchée à la création de ce document, jamais par l'app.
+  Future<void> submitRating({
+    required String rideId,
+    required String clientId,
+    required String driverId,
+    required int stars,
+  }) async {
+    await _firestore.collection('ratings').doc(rideId).set({
+      'rideId': rideId,
+      'clientId': clientId,
+      'driverId': driverId,
+      'stars': stars,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   /// Suivi temps réel d'une course précise, côté client.
   Stream<RideModel> watchRide(String rideId) {
     return _ridesRef.doc(rideId).snapshots().map(

@@ -378,3 +378,98 @@ describe('rides/{rideId}/messages', () => {
     );
   });
 });
+
+describe('ratings', () => {
+  async function seedCompletedRide() {
+    await seed(async (db) => {
+      await db.collection('users').doc(CLIENT_A).set(userDoc({ uid: CLIENT_A }));
+      await db.collection('users').doc(DRIVER_APPROVED_BAMAKO).set(
+        userDoc({ uid: DRIVER_APPROVED_BAMAKO, role: 'driver_moto', verificationStatus: 'approved' })
+      );
+      await db.collection('rides').doc('ride-1').set(
+        rideDoc({
+          clientId: CLIENT_A,
+          status: 'completed',
+          driverId: DRIVER_APPROVED_BAMAKO,
+          driverName: 'Test User',
+          driverPhone: '+22370000000',
+        })
+      );
+    });
+  }
+
+  test('le client de la course peut la noter une fois terminée', async () => {
+    await seedCompletedRide();
+
+    const clientA = testEnv.authenticatedContext(CLIENT_A).firestore();
+    await assertSucceeds(
+      clientA
+        .collection('ratings')
+        .doc('ride-1')
+        .set({
+          rideId: 'ride-1',
+          clientId: CLIENT_A,
+          driverId: DRIVER_APPROVED_BAMAKO,
+          stars: 5,
+          createdAt: serverTimestamp(),
+        })
+    );
+  });
+
+  test('le chauffeur ne peut pas noter sa propre course', async () => {
+    await seedCompletedRide();
+
+    const driver = testEnv.authenticatedContext(DRIVER_APPROVED_BAMAKO).firestore();
+    await assertFails(
+      driver
+        .collection('ratings')
+        .doc('ride-1')
+        .set({
+          rideId: 'ride-1',
+          clientId: CLIENT_A,
+          driverId: DRIVER_APPROVED_BAMAKO,
+          stars: 5,
+          createdAt: serverTimestamp(),
+        })
+    );
+  });
+
+  test('impossible de noter une course pas encore terminée', async () => {
+    await seed(async (db) => {
+      await db.collection('users').doc(CLIENT_A).set(userDoc({ uid: CLIENT_A }));
+      await db.collection('rides').doc('ride-1').set(
+        rideDoc({ clientId: CLIENT_A, status: 'accepted', driverId: DRIVER_APPROVED_BAMAKO })
+      );
+    });
+
+    const clientA = testEnv.authenticatedContext(CLIENT_A).firestore();
+    await assertFails(
+      clientA
+        .collection('ratings')
+        .doc('ride-1')
+        .set({
+          rideId: 'ride-1',
+          clientId: CLIENT_A,
+          driverId: DRIVER_APPROVED_BAMAKO,
+          stars: 5,
+          createdAt: serverTimestamp(),
+        })
+    );
+  });
+
+  test('un avis ne peut pas être modifié une fois créé', async () => {
+    await seedCompletedRide();
+    await seed(async (db) => {
+      await db.collection('ratings').doc('ride-1').set({
+        rideId: 'ride-1',
+        clientId: CLIENT_A,
+        driverId: DRIVER_APPROVED_BAMAKO,
+        stars: 5,
+        createdAt: new Date(),
+      });
+    });
+
+    const clientA = testEnv.authenticatedContext(CLIENT_A).firestore();
+    await assertFails(clientA.collection('ratings').doc('ride-1').set({ stars: 1 }, { merge: true }));
+  });
+});

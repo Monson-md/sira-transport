@@ -5,6 +5,7 @@ import '../../auth/screens/profile_screen.dart';
 import '../models/ride_model.dart';
 import '../services/ride_service.dart';
 import 'create_ride_screen.dart';
+import 'ride_history_screen.dart';
 import 'ride_tracking_screen.dart';
 
 class ClientHomeScreen extends StatefulWidget {
@@ -43,6 +44,14 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     );
   }
 
+  void _openHistory(UserModel profile) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => RideHistoryScreen(userId: profile.uid, role: profile.role),
+      ),
+    );
+  }
+
   void _openTracking(String rideId) {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => RideTrackingScreen(rideId: rideId)),
@@ -51,88 +60,100 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Sira-Transport'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.person_outline),
-            onPressed: _openProfile,
+    return FutureBuilder<UserModel?>(
+      future: _profileFuture,
+      builder: (context, profileSnapshot) {
+        final profile = profileSnapshot.data;
+
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Sira-Transport'),
+            actions: [
+              if (profile != null)
+                IconButton(
+                  icon: const Icon(Icons.history),
+                  tooltip: 'Historique',
+                  onPressed: () => _openHistory(profile),
+                ),
+              IconButton(
+                icon: const Icon(Icons.person_outline),
+                onPressed: _openProfile,
+              ),
+            ],
           ),
-        ],
-      ),
-      body: FutureBuilder<UserModel?>(
-        future: _profileFuture,
-        builder: (context, profileSnapshot) {
-          if (profileSnapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+          body: _buildBody(profileSnapshot),
+        );
+      },
+    );
+  }
 
-          final profile = profileSnapshot.data;
-          if (profile == null) {
-            return const Center(
-              child: Text('Impossible de charger votre profil.'),
-            );
-          }
+  Widget _buildBody(AsyncSnapshot<UserModel?> profileSnapshot) {
+    if (profileSnapshot.connectionState == ConnectionState.waiting) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-          return StreamBuilder<List<RideModel>>(
-            stream: _rideService.myRidesStream(profile.uid, 'client'),
-            builder: (context, rideSnapshot) {
-              final activeRide = (rideSnapshot.data ?? [])
-                  .where((r) => r.status == 'pending' || r.status == 'accepted')
-                  .firstOrNull;
+    final profile = profileSnapshot.data;
+    if (profile == null) {
+      return const Center(
+        child: Text('Impossible de charger votre profil.'),
+      );
+    }
 
-              return SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        'Bonjour, ${profile.name} 👋',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
+    return StreamBuilder<List<RideModel>>(
+      stream: _rideService.myRidesStream(profile.uid, 'client'),
+      builder: (context, rideSnapshot) {
+        final activeRide = (rideSnapshot.data ?? [])
+            .where((r) => r.status == 'pending' || r.status == 'accepted')
+            .firstOrNull;
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Bonjour, ${profile.name} 👋',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                const SizedBox(height: 24),
+                if (activeRide != null)
+                  _ActiveRideCard(
+                    ride: activeRide,
+                    onTap: () => _openTracking(activeRide.id),
+                  )
+                else
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        'Vous n\'avez aucune course en cours.',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
                             ),
                       ),
-                      const SizedBox(height: 24),
-                      if (activeRide != null)
-                        _ActiveRideCard(
-                          ride: activeRide,
-                          onTap: () => _openTracking(activeRide.id),
-                        )
-                      else
-                        Expanded(
-                          child: Center(
-                            child: Text(
-                              'Vous n\'avez aucune course en cours.',
-                              textAlign: TextAlign.center,
-                              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                  ),
-                            ),
-                          ),
-                        ),
-                      const SizedBox(height: 24),
-                      if (activeRide == null)
-                        FilledButton.icon(
-                          onPressed: _openCreateRide,
-                          icon: const Icon(Icons.add),
-                          label: const Text('Publier une course'),
-                          style: FilledButton.styleFrom(
-                            minimumSize: const Size(double.infinity, 52),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        ),
-                    ],
+                    ),
                   ),
-                ),
-              );
-            },
-          );
-        },
-      ),
+                const SizedBox(height: 24),
+                if (activeRide == null)
+                  FilledButton.icon(
+                    onPressed: _openCreateRide,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Publier une course'),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 52),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/user_model.dart';
 
@@ -131,6 +132,37 @@ class AuthService {
     await _auth.signOut();
   }
 
+  // ---------------- Profil ----------------
+
+  /// Modifie le quartier (et, pour un chauffeur, le modèle de véhicule) du
+  /// profil connecté. Jamais le rôle : firestore.rules l'interdit de toute
+  /// façon (request.resource.data.role == resource.data.role).
+  Future<void> updateProfile({
+    required String neighborhood,
+    String? vehicleModel,
+  }) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return;
+
+    final data = <String, dynamic>{'neighborhood': neighborhood};
+    if (vehicleModel != null) data['vehicleModel'] = vehicleModel;
+
+    await _firestore.collection('users').doc(uid).update(data);
+  }
+
+  /// Supprime définitivement le compte connecté (profil Firestore, pièces
+  /// chauffeur et compte Firebase Auth). Passe par une Cloud Function
+  /// (Admin SDK) plutôt que par un `delete` client : firestore.rules
+  /// n'autorise aucune suppression depuis l'app, et la suppression du
+  /// compte Auth lui-même n'est de toute façon accessible qu'au SDK admin.
+  Future<void> deleteAccount() async {
+    await FirebaseFunctions.instance.httpsCallable('deleteMyAccount').call();
+    // Le compte Auth est déjà supprimé côté serveur ; on force l'état
+    // local à jour immédiatement plutôt que d'attendre l'expiration du
+    // token, pour qu'AuthGate redirige tout de suite vers la connexion.
+    await _auth.signOut();
+  }
+
   // ---------------- Notifications push ----------------
 
   /// Enregistre le token FCM de l'appareil sur le profil de l'utilisateur
@@ -140,6 +172,14 @@ class AuthService {
     final uid = _auth.currentUser?.uid;
     if (uid == null) return;
     await _firestore.collection('users').doc(uid).update({'fcmToken': token});
+  }
+
+  /// Efface le token FCM du profil, pour ne plus recevoir de notifications
+  /// sur cet appareil après déconnexion.
+  Future<void> clearFcmToken() async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return;
+    await _firestore.collection('users').doc(uid).update({'fcmToken': null});
   }
 
   // Récupérer les données Firestore de l'utilisateur connecté

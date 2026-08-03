@@ -437,10 +437,35 @@ class _CompletedView extends StatefulWidget {
 }
 
 class _CompletedViewState extends State<_CompletedView> {
+  final _rideService = RideService();
   int _selectedStars = 5;
+  bool _isSubmitting = false;
 
   void _finish() {
     Navigator.of(context).popUntil((route) => route.isFirst);
+  }
+
+  Future<void> _submitRatingAndFinish() async {
+    final driverId = widget.ride.driverId;
+    if (driverId == null) {
+      _finish();
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+    try {
+      await _rideService.submitRating(
+        rideId: widget.ride.id,
+        clientId: widget.ride.clientId,
+        driverId: driverId,
+        stars: _selectedStars,
+      );
+    } catch (_) {
+      // Best-effort : une course déjà notée ou une erreur réseau ne doit
+      // pas empêcher le client de quitter cet écran.
+    }
+    if (!mounted) return;
+    _finish();
   }
 
   @override
@@ -485,16 +510,22 @@ class _CompletedViewState extends State<_CompletedView> {
             ),
             const SizedBox(height: 28),
             FilledButton(
-              onPressed: _finish,
+              onPressed: _isSubmitting ? null : _submitRatingAndFinish,
               style: FilledButton.styleFrom(
                 minimumSize: const Size(double.infinity, 52),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              child: const Text('Envoyer'),
+              child: _isSubmitting
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Text('Envoyer'),
             ),
             const SizedBox(height: 8),
             TextButton(
-              onPressed: _finish,
+              onPressed: _isSubmitting ? null : _finish,
               child: const Text('Passer'),
             ),
           ],

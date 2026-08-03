@@ -25,8 +25,9 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final _authService = AuthService();
-  late final Future<UserModel?> _profileFuture;
+  late Future<UserModel?> _profileFuture;
   bool _isSigningOut = false;
+  bool _isDeletingAccount = false;
 
   @override
   void initState() {
@@ -40,13 +41,109 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return _authService.getUserData(uid);
   }
 
+  Future<void> _editProfile(UserModel profile) async {
+    final isDriver = profile.role == 'driver_moto' || profile.role == 'driver_taxi';
+    final neighborhoodController = TextEditingController(text: profile.neighborhood);
+    final vehicleController = TextEditingController(text: profile.vehicleModel ?? '');
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Modifier mon profil'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: neighborhoodController,
+              decoration: const InputDecoration(labelText: 'Quartier'),
+            ),
+            if (isDriver) ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: vehicleController,
+                decoration: const InputDecoration(labelText: 'Modèle du véhicule'),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Enregistrer'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    final neighborhood = neighborhoodController.text.trim();
+    final vehicleModel = vehicleController.text.trim();
+
+    if (neighborhood.isEmpty || (isDriver && vehicleModel.isEmpty)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ces champs ne peuvent pas être vides.')),
+      );
+      return;
+    }
+
+    try {
+      await _authService.updateProfile(
+        neighborhood: neighborhood,
+        vehicleModel: isDriver ? vehicleModel : null,
+      );
+      if (!mounted) return;
+      setState(() => _profileFuture = _loadProfile());
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profil mis à jour.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur : ${e.toString()}')),
+      );
+    }
+  }
+
+  Future<void> _confirmSignOut() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Se déconnecter ?'),
+        content: const Text(
+          'Tu ne recevras plus de notifications de course sur cet appareil '
+          'tant que tu ne te reconnectes pas.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Se déconnecter'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) await _signOut();
+  }
+
   Future<void> _signOut() async {
     setState(() => _isSigningOut = true);
     try {
       await NotificationService().unsubscribeCurrentTopic();
+      await _authService.clearFcmToken();
       await _authService.signOut();
       // AuthGate réagit automatiquement via authStateChanges() et affiche
-      // l'écran de connexion ; on referme cet écran de profil s'il était empilé.
+      // l'écran de connexion ; on referme cet écran de profil s'il était
+      // empilé, pour ne laisser aucun retour arrière possible dessus.
       if (!mounted) return;
       Navigator.of(context).popUntil((route) => route.isFirst);
     } catch (e) {
@@ -55,6 +152,51 @@ class _ProfileScreenState extends State<ProfileScreen> {
         SnackBar(content: Text('Erreur lors de la déconnexion : ${e.toString()}')),
       );
       setState(() => _isSigningOut = false);
+    }
+  }
+
+  Future<void> _confirmDeleteAccount() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Supprimer mon compte ?'),
+        content: const Text(
+          'Cette action est définitive : ton profil et tes pièces seront '
+          'supprimés et tu ne pourras plus te connecter avec ce compte. '
+          'Ton historique de courses reste visible par les autres parties.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Supprimer définitivement'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) await _deleteAccount();
+  }
+
+  Future<void> _deleteAccount() async {
+    setState(() => _isDeletingAccount = true);
+    try {
+      await NotificationService().unsubscribeCurrentTopic();
+      await _authService.deleteAccount();
+      if (!mounted) return;
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur lors de la suppression : ${e.toString()}')),
+      );
+      setState(() => _isDeletingAccount = false);
     }
   }
 
@@ -104,7 +246,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 Center(
                   child: Text(
-                    '⭐ ${profile.rating.toStringAsFixed(1)}',
+                    '⭐ ${profile.rating.toStringAsFixed(1)} '
+                    '(${profile.ratingCount} avis)',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
@@ -188,9 +331,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ? 'Non renseigné'
                         : profile.vehicleModel!,
                   ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 8),
                 OutlinedButton.icon(
-                  onPressed: _isSigningOut ? null : _signOut,
+                  onPressed: () => _editProfile(profile),
+                  icon: const Icon(Icons.edit_outlined),
+                  label: const Text('Modifier quartier / véhicule'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 46),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                OutlinedButton.icon(
+                  onPressed: (_isSigningOut || _isDeletingAccount) ? null : _confirmSignOut,
                   icon: _isSigningOut
                       ? const SizedBox(
                           height: 18,
@@ -206,6 +359,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Center(
+                  child: TextButton(
+                    onPressed:
+                        (_isSigningOut || _isDeletingAccount) ? null : _confirmDeleteAccount,
+                    child: _isDeletingAccount
+                        ? const SizedBox(
+                            height: 16,
+                            width: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Text(
+                            'Supprimer mon compte',
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              decoration: TextDecoration.underline,
+                            ),
+                          ),
                   ),
                 ),
               ],

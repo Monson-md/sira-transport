@@ -32,6 +32,14 @@ rules_version = '2';
 //   réservées au client et au chauffeur de la course, uniquement tant
 //   qu'elle est 'accepted'.
 //
+// ratings/{rideId}
+//   rideId, clientId, driverId, stars (int, 1 à 5), createdAt (Timestamp,
+//   toujours FieldValue.serverTimestamp() côté client). Un seul document
+//   par course (id = rideId), créé uniquement par le client de la course
+//   une fois 'completed', jamais modifiable ensuite. rating/ratingCount
+//   du chauffeur sont recalculés par une Cloud Function déclenchée à la
+//   création de ce document, jamais depuis l'app.
+//
 // driver_documents/{docId}
 //   driverId, type ('identity'|'license'|'vehicle_registration'|
 //   'vehicle_photo'), storagePath, status ('pending_review'|'approved'|
@@ -218,6 +226,36 @@ service cloud.firestore {
                     && request.resource.data.text.size() <= 1000
                     && request.resource.data.createdAt == request.time;
 
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ---------------- ratings ----------------
+    match /ratings/{rideId} {
+      function ratedRide() {
+        return get(/databases/$(database)/documents/rides/$(rideId)).data;
+      }
+
+      allow read: if signedIn()
+                  && (ratedRide().clientId == request.auth.uid
+                      || ratedRide().driverId == request.auth.uid);
+
+      // Un seul avis par course : le document est identifié par rideId et
+      // aucune modification n'est permise ensuite (allow update: false
+      // plus bas), donc une seconde tentative échoue systématiquement.
+      allow create: if signedIn()
+                    && ratedRide().status == 'completed'
+                    && ratedRide().clientId == request.auth.uid
+                    && request.resource.data.rideId == rideId
+                    && request.resource.data.clientId == request.auth.uid
+                    && request.resource.data.driverId == ratedRide().driverId
+                    && request.resource.data.stars is int
+                    && request.resource.data.stars >= 1
+                    && request.resource.data.stars <= 5
+                    && request.resource.data.createdAt == request.time;
+
+      // rating/ratingCount du chauffeur ne sont recalculés que par la
+      // Cloud Function onRatingCreated (Admin SDK, hors de ces règles).
       allow update: if false;
       allow delete: if false;
     }

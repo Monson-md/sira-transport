@@ -11,6 +11,7 @@ import '../../verification/screens/driver_documents_screen.dart';
 import '../models/ride_model.dart';
 import '../services/ride_service.dart';
 import 'ride_chat_screen.dart';
+import 'ride_history_screen.dart';
 
 const Map<String, String> _kVerificationMessages = {
   'pending': 'Ton dossier est en cours de contrôle. Tu recevras les courses '
@@ -163,6 +164,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
   StreamSubscription<List<RideModel>>? _newRideSub;
   bool _isFirstRideSnapshot = true;
   bool _voiceEnabled = true;
+  UserModel? _profile;
 
   @override
   void initState() {
@@ -192,6 +194,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
     final uid = _authService.currentUser?.uid;
     if (uid == null) return null;
     final profile = await _authService.getUserData(uid);
+    if (mounted) setState(() => _profile = profile);
     // Un chauffeur non vérifié n'a pas le droit d'interroger les courses
     // disponibles (firestore.rules), donc pas de topic ni d'annonces
     // pertinents pour lui.
@@ -250,6 +253,14 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
   void _openProfile() {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const ProfileScreen()),
+    );
+  }
+
+  void _openHistory(UserModel profile) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => RideHistoryScreen(userId: profile.uid, role: profile.role),
+      ),
     );
   }
 
@@ -312,6 +323,12 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
                     if (mounted) setState(() => _voiceEnabled = next);
                   },
           ),
+          if (_profile != null)
+            IconButton(
+              icon: const Icon(Icons.history),
+              tooltip: 'Historique',
+              onPressed: () => _openHistory(_profile!),
+            ),
           IconButton(
             icon: const Icon(Icons.person_outline),
             onPressed: _openProfile,

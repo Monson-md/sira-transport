@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../core/services/tts_service.dart';
 import '../../auth/models/user_model.dart';
 import '../../auth/services/auth_service.dart';
 import '../../auth/screens/profile_screen.dart';
@@ -49,6 +52,90 @@ String _timeAgo(DateTime? date) {
   return 'il y a ${diff.inDays} j';
 }
 
+const List<String> _kUnitsFr = [
+  'zéro', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf',
+  'dix', 'onze', 'douze', 'treize', 'quatorze', 'quinze', 'seize', 'dix-sept',
+  'dix-huit', 'dix-neuf',
+];
+
+const List<String> _kTensFr = ['', '', 'vingt', 'trente', 'quarante', 'cinquante', 'soixante'];
+
+/// Nombre de 0 à 99 en toutes lettres, avec les irrégularités du français
+/// (soixante-dix, quatre-vingts, quatre-vingt-onze...).
+String _twoDigitsToFrenchWords(int n) {
+  if (n < 20) return _kUnitsFr[n];
+  if (n < 70) {
+    final tens = n ~/ 10;
+    final rem = n % 10;
+    final tensWord = _kTensFr[tens];
+    if (rem == 0) return tensWord;
+    if (rem == 1) return '$tensWord et un';
+    return '$tensWord-${_kUnitsFr[rem]}';
+  }
+  if (n < 80) {
+    final rem = n - 60;
+    if (rem == 11) return 'soixante et onze';
+    return 'soixante-${_kUnitsFr[rem]}';
+  }
+  final rem = n - 80;
+  if (rem == 0) return 'quatre-vingts';
+  return 'quatre-vingt-${_kUnitsFr[rem]}';
+}
+
+/// Nombre de 0 à 999 en toutes lettres ("cent" ne prend un 's' que s'il
+/// n'est suivi de rien, ex: "deux cents" mais "deux cent cinquante").
+String _threeDigitsToFrenchWords(int n) {
+  final hundreds = n ~/ 100;
+  final rem = n % 100;
+  final buffer = StringBuffer();
+
+  if (hundreds > 0) {
+    if (hundreds > 1) buffer.write('${_kUnitsFr[hundreds]} ');
+    buffer.write('cent');
+    if (hundreds > 1 && rem == 0) buffer.write('s');
+    if (rem > 0) buffer.write(' ');
+  }
+  if (rem > 0) buffer.write(_twoDigitsToFrenchWords(rem));
+
+  return buffer.toString();
+}
+
+/// Convertit un entier en toutes lettres, pour que le TTS le prononce
+/// correctement ("mille francs" plutôt que "1000 F").
+String numberToFrenchWords(int n) {
+  if (n == 0) return 'zéro';
+  if (n < 0) return 'moins ${numberToFrenchWords(-n)}';
+
+  if (n >= 1000000) {
+    final millions = n ~/ 1000000;
+    final rest = n % 1000000;
+    final millionsWord = millions == 1 ? 'un million' : '${_threeDigitsToFrenchWords(millions)} millions';
+    return rest > 0 ? '$millionsWord ${numberToFrenchWords(rest)}' : millionsWord;
+  }
+
+  final thousands = n ~/ 1000;
+  final rem = n % 1000;
+  final parts = <String>[];
+  if (thousands > 0) {
+    parts.add(thousands == 1 ? 'mille' : '${_threeDigitsToFrenchWords(thousands)} mille');
+  }
+  if (rem > 0) parts.add(_threeDigitsToFrenchWords(rem));
+
+  return parts.join(' ');
+}
+
+/// Phrase lue par le TTS pour annoncer une course, ex : "Nouvelle course
+/// colis. Départ Kalabancoro, près du terrain de foot. Arrivée
+/// Badalabougou. Prix mille francs."
+String _announcementFor(RideModel ride) {
+  final typeLabel = ride.type == 'colis' ? 'colis' : 'passager';
+  final priceWords = numberToFrenchWords(ride.offeredPrice);
+  return 'Nouvelle course $typeLabel. '
+      'Départ ${ride.departureNeighborhood}, ${ride.departureLandmark}. '
+      'Arrivée ${ride.arrivalNeighborhood}. '
+      'Prix $priceWords francs.';
+}
+
 class DriverDashboardScreen extends StatefulWidget {
   const DriverDashboardScreen({super.key});
 
@@ -56,7 +143,8 @@ class DriverDashboardScreen extends StatefulWidget {
   State<DriverDashboardScreen> createState() => _DriverDashboardScreenState();
 }
 
-class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
+class _DriverDashboardScreenState extends State<DriverDashboardScreen>
+    with WidgetsBindingObserver {
   final _authService = AuthService();
   final _rideService = RideService();
 
@@ -69,10 +157,35 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
   /// en attendant que le flux Firestore se resynchronise.
   final Set<String> _dismissedRideIds = {};
 
+  /// Ids des courses déjà annoncées à la voix, pour ne jamais répéter.
+  final Set<String> _announcedRideIds = {};
+
+  StreamSubscription<List<RideModel>>? _newRideSub;
+  bool _isFirstRideSnapshot = true;
+  bool _voiceEnabled = true;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _profileFuture = _loadProfile();
+  }
+
+  @override
+  void dispose() {
+    _newRideSub?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Une annonce en cours n'a pas de sens quand l'app n'est plus au
+    // premier plan (et le moteur TTS peut de toute façon être suspendu par
+    // l'OS à ce moment-là).
+    if (state != AppLifecycleState.resumed) {
+      TtsService().stop();
+    }
   }
 
   Future<UserModel?> _loadProfile() async {
@@ -80,11 +193,58 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
     if (uid == null) return null;
     final profile = await _authService.getUserData(uid);
     // Un chauffeur non vérifié n'a pas le droit d'interroger les courses
-    // disponibles (firestore.rules), donc pas de topic pertinent pour lui.
+    // disponibles (firestore.rules), donc pas de topic ni d'annonces
+    // pertinents pour lui.
     if (profile != null && profile.verificationStatus == 'approved') {
       await NotificationService().syncTopicForDriver(profile);
+      await _initVoiceAnnouncements(profile);
     }
     return profile;
+  }
+
+  Future<void> _initVoiceAnnouncements(UserModel profile) async {
+    final warning = await TtsService().init();
+    if (mounted) {
+      setState(() => _voiceEnabled = TtsService().isPreferenceEnabled);
+    }
+    if (warning != null && mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(warning), duration: const Duration(seconds: 8)),
+        );
+      });
+    }
+    _startRideAnnouncements(profile);
+  }
+
+  /// Écoute les courses nouvellement publiées pour les annoncer à la voix.
+  /// Fait exprès de NE PAS passer par un StreamBuilder dans build() : une
+  /// souscription posée une fois ici évite de relire la même course à
+  /// chaque reconstruction du widget.
+  void _startRideAnnouncements(UserModel profile) {
+    _newRideSub?.cancel();
+    _isFirstRideSnapshot = true;
+
+    _newRideSub = _rideService
+        .watchNewlyAddedRides(profile.country, profile.city, _vehicleTypeForRole(profile.role))
+        .listen((newRides) {
+      // Le premier snapshot d'un listener Firestore contient un "added"
+      // pour chaque course déjà présente : on les mémorise comme connues
+      // sans les annoncer, sinon toutes les courses en attente seraient
+      // lues d'un coup au démarrage.
+      if (_isFirstRideSnapshot) {
+        _isFirstRideSnapshot = false;
+        _announcedRideIds.addAll(newRides.map((ride) => ride.id));
+        return;
+      }
+
+      for (final ride in newRides) {
+        if (_announcedRideIds.add(ride.id)) {
+          TtsService().speak(_announcementFor(ride));
+        }
+      }
+    });
   }
 
   void _openProfile() {
@@ -141,6 +301,17 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
       appBar: AppBar(
         title: const Text('Courses disponibles'),
         actions: [
+          IconButton(
+            tooltip: _voiceEnabled ? 'Lecture vocale activée' : 'Lecture vocale désactivée',
+            icon: Icon(_voiceEnabled ? Icons.record_voice_over : Icons.voice_over_off),
+            onPressed: !TtsService().isAvailable
+                ? null
+                : () async {
+                    final next = !_voiceEnabled;
+                    await TtsService().setEnabled(next);
+                    if (mounted) setState(() => _voiceEnabled = next);
+                  },
+          ),
           IconButton(
             icon: const Icon(Icons.person_outline),
             onPressed: _openProfile,
@@ -368,6 +539,12 @@ class _AvailableRideCard extends StatelessWidget {
                     color: colorScheme.primary,
                   ),
                 ),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  tooltip: 'Réécouter',
+                  icon: const Icon(Icons.volume_up_outlined),
+                  onPressed: () => TtsService().speak(_announcementFor(ride)),
+                ),
               ],
             ),
             const SizedBox(height: 14),
@@ -474,6 +651,12 @@ class _AcceptedRideCard extends StatelessWidget {
                 Text(
                   _formattedPrice(ride.offeredPrice),
                   style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.primary),
+                ),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  tooltip: 'Réécouter',
+                  icon: const Icon(Icons.volume_up_outlined),
+                  onPressed: () => TtsService().speak(_announcementFor(ride)),
                 ),
               ],
             ),

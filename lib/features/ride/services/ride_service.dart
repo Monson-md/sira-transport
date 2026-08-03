@@ -69,6 +69,34 @@ class RideService {
     });
   }
 
+  /// Flux des courses nouvellement publiées (DocumentChangeType.added
+  /// uniquement), destiné aux annonces vocales chauffeur. Volontairement
+  /// séparé de [getAvailableRidesStream] : le premier snapshot d'un
+  /// listener Firestore contient TOUJOURS un DocumentChangeType.added par
+  /// document existant, donc à lui seul ce filtre ne suffit pas à
+  /// distinguer "course déjà là" de "course qui vient d'arriver" — c'est
+  /// à l'appelant d'ignorer explicitement la toute première émission.
+  Stream<List<RideModel>> watchNewlyAddedRides(
+    String country,
+    String city,
+    String vehicleType,
+  ) {
+    return _ridesRef
+        .where('status', isEqualTo: 'pending')
+        .where('country', isEqualTo: country)
+        .where('city', isEqualTo: city)
+        .orderBy('createdAt', descending: true)
+        .limit(50)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docChanges
+          .where((change) => change.type == DocumentChangeType.added)
+          .map((change) => RideModel.fromMap(change.doc.data() ?? {}))
+          .where((ride) => ride.vehicleType == vehicleType || ride.vehicleType == 'any')
+          .toList();
+    });
+  }
+
   /// Un chauffeur accepte une course. Toujours en transaction : on relit le
   /// document, et on n'accepte que si status == 'pending' et driverId ==
   /// null, sinon un autre chauffeur est déjà passé avant nous.

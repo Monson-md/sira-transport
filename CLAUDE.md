@@ -100,3 +100,9 @@ compilation en local** : la machine de dev n'est pas assez puissante pour
 fait déjà `flutter analyze` puis `flutter build apk --release`). Pour
 valider un changement, se limiter à `flutter analyze` en local et laisser
 la CI GitHub faire le reste après push.
+
+**À la fin de chaque prompt numéroté ("Prompt N — ...") mené à bien,
+commit puis push sur `main`, avec le numéro du prompt dans le message de
+commit** (ex: "Prompt 4: ..."). Ça s'applique même dans une nouvelle
+session qui n'a pas ce fichier de conversation en mémoire — ne pas
+attendre que l'utilisateur le redemande à chaque fois.

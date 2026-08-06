@@ -19,6 +19,15 @@ const Map<String, List<String>> _kCitiesByCountry = {
 
 const List<String> _kCountries = ['Mali', 'Côte d\'Ivoire', 'Sénégal', 'Autre'];
 
+/// Indicatifs téléphoniques pris en charge, pour stocker le numéro au
+/// format E.164 (+223XXXXXXXX) quel que soit ce que tape l'utilisateur.
+const Map<String, String> _kPhoneCodesByCountry = {
+  'Mali': '+223',
+  'Côte d\'Ivoire': '+225',
+  'Sénégal': '+221',
+};
+const List<String> _kPhoneCodes = ['+223', '+225', '+221'];
+
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
@@ -36,16 +45,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _neighborhoodController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
   final _vehicleModelController = TextEditingController();
+  final _vehiclePlateController = TextEditingController();
   final _customCountryController = TextEditingController();
   final _customCityController = TextEditingController();
 
   String _selectedRole = 'client';
   String _selectedCountry = 'Mali';
   String? _selectedCity = 'Bamako';
+  String _phoneCode = '+223';
 
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
 
   bool get _isDriver =>
       _selectedRole == 'driver_moto' || _selectedRole == 'driver_taxi';
@@ -59,7 +72,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _neighborhoodController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     _vehicleModelController.dispose();
+    _vehiclePlateController.dispose();
     _customCountryController.dispose();
     _customCityController.dispose();
     super.dispose();
@@ -71,6 +86,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _selectedCountry = value;
       final cities = _kCitiesByCountry[value];
       _selectedCity = (cities != null && cities.isNotEmpty) ? cities.first : null;
+      final code = _kPhoneCodesByCountry[value];
+      if (code != null) _phoneCode = code;
     });
   }
 
@@ -83,18 +100,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _isCustomCountry ? _customCountryController.text.trim() : _selectedCountry;
     final String city =
         _isCustomCountry ? _customCityController.text.trim() : (_selectedCity ?? '');
+    final String phoneNumber = '$_phoneCode${_phoneController.text.trim()}';
 
     try {
       await _authService.signUpWithEmail(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
         name: _nameController.text.trim(),
-        phoneNumber: _phoneController.text.trim(),
+        phoneNumber: phoneNumber,
         role: _selectedRole,
         country: country,
         city: city,
         neighborhood: _neighborhoodController.text.trim(),
         vehicleModel: _isDriver ? _vehicleModelController.text.trim() : null,
+        vehiclePlate: _isDriver ? _vehiclePlateController.text.trim() : null,
       );
 
       if (!mounted) return;
@@ -195,16 +214,39 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             (v == null || v.trim().isEmpty) ? 'Entrez votre nom' : null,
                       ),
                       const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _phoneController,
-                        keyboardType: TextInputType.phone,
-                        decoration: _inputDecoration(
-                          label: 'Numéro WhatsApp',
-                          icon: Icons.phone_outlined,
-                          hint: 'Ex : +223 70 00 00 00',
-                        ),
-                        validator: (v) =>
-                            (v == null || v.trim().isEmpty) ? 'Entrez votre numéro' : null,
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(
+                            width: 110,
+                            child: DropdownButtonFormField<String>(
+                              initialValue: _phoneCode,
+                              decoration: _inputDecoration(label: 'Indicatif', icon: Icons.flag_outlined),
+                              items: _kPhoneCodes
+                                  .map((code) => DropdownMenuItem(value: code, child: Text(code)))
+                                  .toList(),
+                              onChanged: (v) => setState(() => _phoneCode = v!),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: TextFormField(
+                              controller: _phoneController,
+                              keyboardType: TextInputType.phone,
+                              decoration: _inputDecoration(
+                                label: 'Numéro WhatsApp',
+                                icon: Icons.phone_outlined,
+                                hint: 'Ex : 70 00 00 00',
+                              ),
+                              validator: (v) {
+                                final digits = (v ?? '').replaceAll(RegExp(r'\D'), '');
+                                if (digits.isEmpty) return 'Entrez votre numéro';
+                                if (digits.length < 6) return 'Numéro trop court';
+                                return null;
+                              },
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 24),
 
@@ -291,6 +333,40 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               ? 'Entrez le modèle de votre véhicule'
                               : null,
                         ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _vehiclePlateController,
+                          textCapitalization: TextCapitalization.characters,
+                          decoration: _inputDecoration(
+                            label: 'Plaque d\'immatriculation',
+                            icon: Icons.pin_outlined,
+                            hint: 'Ex : AB 1234',
+                          ),
+                          validator: (v) => (_isDriver && (v == null || v.trim().isEmpty))
+                              ? 'Entrez votre plaque d\'immatriculation'
+                              : null,
+                        ),
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(Icons.info_outline, color: Theme.of(context).colorScheme.primary),
+                              const SizedBox(width: 10),
+                              const Expanded(
+                                child: Text(
+                                  'Ton compte sera vérifié avant de pouvoir recevoir des courses.',
+                                  style: TextStyle(fontWeight: FontWeight.w500),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ],
 
                       const SizedBox(height: 24),
@@ -330,6 +406,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                         validator: (v) => (v == null || v.length < 6)
                             ? 'Mot de passe trop court (min. 6 caractères)'
+                            : null,
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _confirmPasswordController,
+                        obscureText: _obscureConfirmPassword,
+                        decoration: _inputDecoration(
+                          label: 'Confirmer le mot de passe',
+                          icon: Icons.lock_outline,
+                        ).copyWith(
+                          suffixIcon: IconButton(
+                            icon: Icon(_obscureConfirmPassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined),
+                            onPressed: () => setState(
+                                () => _obscureConfirmPassword = !_obscureConfirmPassword),
+                          ),
+                        ),
+                        validator: (v) => (v != _passwordController.text)
+                            ? 'Les mots de passe ne correspondent pas'
                             : null,
                       ),
 

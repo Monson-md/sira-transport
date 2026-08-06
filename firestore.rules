@@ -6,7 +6,7 @@ rules_version = '2';
 //
 // users/{uid}
 //   uid, name, phoneNumber, role ('client'|'driver_moto'|'driver_taxi'),
-//   country, city, neighborhood, vehicleModel (drivers only),
+//   country, city, neighborhood, vehicleModel/vehiclePlate (drivers only),
 //   rating (double, fixé à 5.0 à la création), ratingCount (int),
 //   verificationStatus ('pending'|'approved'|'rejected' — seule une
 //     Cloud Function admin peut le faire passer à 'approved'/'rejected'),
@@ -15,16 +15,26 @@ rules_version = '2';
 //   fcmToken (string optionnel — dernier token FCM connu de l'appareil,
 //     mis à jour par NotificationService, aucune règle dédiée : couvert
 //     par la règle update générale sur les champs non verrouillés).
+//   createdAt (Timestamp, toujours FieldValue.serverTimestamp()).
 //
 // rides/{rideId}
-//   clientId, clientName, clientPhone, type ('colis'|'passager'),
+//   clientId, clientName, type ('colis'|'passager'),
 //   departureNeighborhood, departureLandmark, arrivalNeighborhood,
 //   arrivalLandmark, offeredPrice (int FCFA), status
 //   ('pending'|'accepted'|'completed'|'cancelled'), driverId/driverName/
-//   driverPhone, vehicleType ('moto'|'taxi'|'any'), country, city,
+//   driverPhone/driverVehicleModel/driverRating (dénormalisés à
+//   l'acceptation), vehicleType ('moto'|'taxi'|'any'), country, city,
 //   platformFee (int, 0 tant que la V2 payante n'existe pas),
 //   createdAt/acceptedAt/completedAt/cancelledAt (Timestamp, toujours
 //   FieldValue.serverTimestamp() côté client).
+//   Pas de clientPhone ici : voir rides/{rideId}/private/contact plus bas.
+//
+// rides/{rideId}/private/contact
+//   clientPhone. Document séparé exprès : tant qu'une course est
+//   'pending', son document rides/{rideId} est lisible par tout chauffeur
+//   approuvé de la ville (pour qu'il puisse la voir dans sa liste), donc
+//   le numéro du client ne doit PAS s'y trouver avant acceptation. Lecture
+//   réservée au client et au chauffeur assigné une fois qu'il y en a un.
 //
 // rides/{rideId}/messages/{messageId}
 //   senderId, text (string, 1 à 1000 caractères), createdAt (Timestamp,
@@ -106,12 +116,15 @@ service cloud.firestore {
                     && isNonEmptyString(request.resource.data.neighborhood)
                     && (isDriverRole(request.resource.data.role)
                         ? isNonEmptyString(request.resource.data.vehicleModel)
-                        : request.resource.data.vehicleModel == null)
+                            && isNonEmptyString(request.resource.data.vehiclePlate)
+                        : request.resource.data.vehicleModel == null
+                            && request.resource.data.vehiclePlate == null)
                     && request.resource.data.rating == 5.0
                     && request.resource.data.ratingCount == 0
                     && request.resource.data.phoneVerified == false
                     && request.resource.data.verificationStatus ==
-                        (isDriverRole(request.resource.data.role) ? 'pending' : 'approved');
+                        (isDriverRole(request.resource.data.role) ? 'pending' : 'approved')
+                    && request.resource.data.createdAt == request.time;
 
       allow update: if signedIn() && request.auth.uid == uid
                     && request.resource.data.uid == resource.data.uid
@@ -127,13 +140,20 @@ service cloud.firestore {
     // ---------------- rides ----------------
     match /rides/{rideId} {
       allow create: if signedIn()
+                    // Le numéro du client ne doit jamais atterrir sur ce
+                    // document (voir rides/{rideId}/private/contact) : sans
+                    // ce garde-fou, rien n'empêcherait un client d'y glisser
+                    // clientPhone, qui deviendrait alors lisible par tout
+                    // chauffeur approuvé de la ville avant même acceptation.
+                    && !request.resource.data.keys().hasAny(['clientPhone'])
                     && request.resource.data.clientId == request.auth.uid
                     && request.resource.data.clientName == me().name
-                    && request.resource.data.clientPhone == me().phoneNumber
                     && request.resource.data.status == 'pending'
                     && request.resource.data.driverId == null
                     && request.resource.data.driverName == null
                     && request.resource.data.driverPhone == null
+                    && request.resource.data.driverVehicleModel == null
+                    && request.resource.data.driverRating == null
                     && request.resource.data.platformFee == 0
                     && request.resource.data.offeredPrice is int
                     && request.resource.data.offeredPrice >= 100
@@ -169,9 +189,12 @@ service cloud.firestore {
                     && request.resource.data.driverId == request.auth.uid
                     && request.resource.data.driverName == me().name
                     && request.resource.data.driverPhone == me().phoneNumber
+                    && request.resource.data.driverVehicleModel == me().vehicleModel
+                    && request.resource.data.driverRating == me().rating
                     && request.resource.data.acceptedAt == request.time
                     && request.resource.data.diff(resource.data).affectedKeys()
-                        .hasOnly(['status', 'driverId', 'driverName', 'driverPhone', 'acceptedAt']);
+                        .hasOnly(['status', 'driverId', 'driverName', 'driverPhone',
+                                  'driverVehicleModel', 'driverRating', 'acceptedAt']);
 
       // Fin de course par le chauffeur assigné.
       allow update: if signedIn()
@@ -203,6 +226,30 @@ service cloud.firestore {
                     && request.resource.data.diff(resource.data).affectedKeys()
                         .hasOnly(['offeredPrice']);
 
+      allow delete: if false;
+    }
+
+    // ---------------- rides/{rideId}/private ----------------
+    // Contient uniquement clientPhone (doc id 'contact'), séparé du
+    // document rides/{rideId} pour que le numéro du client ne soit jamais
+    // lisible par un chauffeur avant qu'il n'ait accepté la course.
+    match /rides/{rideId}/private/{docId} {
+      function ride() {
+        return get(/databases/$(database)/documents/rides/$(rideId)).data;
+      }
+
+      allow read: if signedIn()
+                  && (ride().clientId == request.auth.uid || ride().driverId == request.auth.uid);
+
+      // Écrit uniquement à la création de la course (même requête / même
+      // lot que le document rides/{rideId} : voir RideService.
+      // createRideRequest, qui écrit les deux dans un même WriteBatch).
+      allow create: if signedIn()
+                    && ride().clientId == request.auth.uid
+                    && docId == 'contact'
+                    && request.resource.data.clientPhone == me().phoneNumber;
+
+      allow update: if false;
       allow delete: if false;
     }
 

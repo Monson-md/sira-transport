@@ -312,16 +312,26 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
       appBar: AppBar(
         title: const Text('Courses disponibles'),
         actions: [
-          IconButton(
-            tooltip: _voiceEnabled ? 'Lecture vocale activée' : 'Lecture vocale désactivée',
-            icon: Icon(_voiceEnabled ? Icons.record_voice_over : Icons.voice_over_off),
-            onPressed: !TtsService().isAvailable
-                ? null
-                : () async {
-                    final next = !_voiceEnabled;
-                    await TtsService().setEnabled(next);
-                    if (mounted) setState(() => _voiceEnabled = next);
-                  },
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _voiceEnabled ? Icons.record_voice_over : Icons.voice_over_off,
+                  size: 20,
+                ),
+                Switch(
+                  value: _voiceEnabled,
+                  onChanged: !TtsService().isAvailable
+                      ? null
+                      : (next) async {
+                          await TtsService().setEnabled(next);
+                          if (mounted) setState(() => _voiceEnabled = next);
+                        },
+                ),
+              ],
+            ),
           ),
           if (_profile != null)
             IconButton(
@@ -622,8 +632,8 @@ class _AcceptedRideCard extends StatelessWidget {
     required this.onComplete,
   });
 
-  Future<void> _call(BuildContext context) async {
-    final uri = Uri(scheme: 'tel', path: ride.clientPhone.replaceAll(' ', ''));
+  Future<void> _call(BuildContext context, String phone) async {
+    final uri = Uri(scheme: 'tel', path: phone.replaceAll(' ', ''));
     final launched = await launchUrl(uri);
     if (!launched && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -632,8 +642,8 @@ class _AcceptedRideCard extends StatelessWidget {
     }
   }
 
-  Future<void> _openWhatsApp(BuildContext context) async {
-    final digitsOnly = ride.clientPhone.replaceAll(RegExp(r'[^\d]'), '');
+  Future<void> _openWhatsApp(BuildContext context, String phone) async {
+    final digitsOnly = phone.replaceAll(RegExp(r'[^\d]'), '');
     final uri = Uri.parse('https://wa.me/$digitsOnly');
     final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!launched && context.mounted) {
@@ -694,24 +704,34 @@ class _AcceptedRideCard extends StatelessWidget {
             const SizedBox(height: 12),
             Text(ride.clientName, style: const TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _call(context),
-                    icon: const Icon(Icons.call, size: 18),
-                    label: const Text('Appeler'),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _openWhatsApp(context),
-                    icon: const Icon(Icons.chat, size: 18),
-                    label: const Text('WhatsApp'),
-                  ),
-                ),
-              ],
+            // Le numéro du client n'est jamais dénormalisé sur le document
+            // rides/{id} (voir RideService.createRideRequest) : on le lit
+            // depuis la sous-collection privée, accessible uniquement une
+            // fois la course acceptée par ce chauffeur.
+            StreamBuilder<String?>(
+              stream: RideService().watchClientPhone(ride.id),
+              builder: (context, snapshot) {
+                final phone = snapshot.data;
+                return Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: phone == null ? null : () => _call(context, phone),
+                        icon: const Icon(Icons.call, size: 18),
+                        label: const Text('Appeler'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: phone == null ? null : () => _openWhatsApp(context, phone),
+                        icon: const Icon(Icons.chat, size: 18),
+                        label: const Text('WhatsApp'),
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 10),
             if (ride.driverId != null)

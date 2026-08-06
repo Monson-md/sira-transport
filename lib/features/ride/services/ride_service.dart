@@ -24,21 +24,48 @@ class RideService {
 
   /// Publie une nouvelle demande de course avec le statut 'pending'.
   /// createdAt est fixé côté serveur via FieldValue.serverTimestamp().
+  ///
+  /// Le téléphone du client N'EST PAS écrit sur le document rides/{id} :
+  /// tant que la course est 'pending', tout chauffeur approuvé de la ville
+  /// peut lire ce document (firestore.rules), donc y laisser le numéro le
+  /// rendrait visible avant acceptation. Il part dans une sous-collection
+  /// à part (rides/{id}/private/contact), lisible uniquement par le client
+  /// et par le chauffeur qui a accepté — voir [watchClientPhone].
   Future<String> createRideRequest(RideModel ride) async {
     final docRef = _ridesRef.doc();
     final data = ride.toMap()
       ..['id'] = docRef.id
       ..['status'] = 'pending'
+      ..remove('clientPhone')
       ..['driverId'] = null
       ..['driverName'] = null
       ..['driverPhone'] = null
+      ..['driverVehicleModel'] = null
+      ..['driverRating'] = null
       ..['createdAt'] = FieldValue.serverTimestamp()
       ..['acceptedAt'] = null
       ..['completedAt'] = null
       ..['cancelledAt'] = null;
 
-    await docRef.set(data);
+    final batch = _firestore.batch();
+    batch.set(docRef, data);
+    batch.set(docRef.collection('private').doc('contact'), {
+      'clientPhone': ride.clientPhone,
+    });
+    await batch.commit();
     return docRef.id;
+  }
+
+  /// Numéro du client, visible uniquement par le client lui-même et par le
+  /// chauffeur une fois qu'il a accepté la course (firestore.rules sur
+  /// rides/{id}/private/{docId}).
+  Stream<String?> watchClientPhone(String rideId) {
+    return _ridesRef
+        .doc(rideId)
+        .collection('private')
+        .doc('contact')
+        .snapshots()
+        .map((snapshot) => snapshot.data()?['clientPhone'] as String?);
   }
 
   /// Flux temps réel des courses en attente pour un pays/ville donnés,
@@ -122,6 +149,11 @@ class RideService {
         'driverId': driver.uid,
         'driverName': driver.name,
         'driverPhone': driver.phoneNumber,
+        // Dénormalisés ici pour que le client puisse afficher véhicule/note
+        // du chauffeur sans avoir à lire users/{driverId} (interdit par
+        // firestore.rules, qui ne laisse chacun lire que son propre profil).
+        'driverVehicleModel': driver.vehicleModel,
+        'driverRating': driver.rating,
         'acceptedAt': FieldValue.serverTimestamp(),
       });
     });

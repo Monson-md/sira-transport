@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import 'auth_gate.dart';
@@ -15,17 +17,53 @@ class EmailVerificationScreen extends StatefulWidget {
 }
 
 class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
+  static const _resendCooldown = Duration(seconds: 60);
+
   final _authService = AuthService();
   bool _isSending = false;
   bool _isChecking = false;
+  Timer? _cooldownTimer;
+  int _cooldownSeconds = 0;
 
+  @override
+  void dispose() {
+    _cooldownTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startCooldown() {
+    _cooldownTimer?.cancel();
+    setState(() => _cooldownSeconds = _resendCooldown.inSeconds);
+    _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_cooldownSeconds <= 1) {
+        timer.cancel();
+        setState(() => _cooldownSeconds = 0);
+      } else {
+        setState(() => _cooldownSeconds--);
+      }
+    });
+  }
+
+  // Renvoyer l'email en boucle rapprochée fait taire Firebase sans erreur
+  // (throttling silencieux) : le cooldown ci-dessus évite ce piège, la
+  // cause la plus fréquente d'un email "qui n'arrive jamais" alors que
+  // l'appel a bien réussi.
   Future<void> _resend() async {
     setState(() => _isSending = true);
     try {
       await _authService.sendEmailVerification();
       if (!mounted) return;
+      _startCooldown();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Email de vérification renvoyé.')),
+        const SnackBar(
+          content: Text(
+            'Email de vérification renvoyé. Pensez à vérifier vos spams/indésirables.',
+          ),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
@@ -89,6 +127,13 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                 textAlign: TextAlign.center,
                 style: TextStyle(color: colorScheme.onSurfaceVariant),
               ),
+              const SizedBox(height: 6),
+              Text(
+                'Rien reçu après quelques minutes ? Vérifiez le dossier '
+                'spam/indésirables de votre messagerie.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12.5),
+              ),
               const SizedBox(height: 32),
               FilledButton(
                 onPressed: _isChecking ? null : _checkVerified,
@@ -106,7 +151,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
               ),
               const SizedBox(height: 12),
               OutlinedButton(
-                onPressed: _isSending ? null : _resend,
+                onPressed: (_isSending || _cooldownSeconds > 0) ? null : _resend,
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 50),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -117,7 +162,11 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                         width: 18,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text("Renvoyer l'email de vérification"),
+                    : Text(
+                        _cooldownSeconds > 0
+                            ? 'Renvoyer l\'email (${_cooldownSeconds}s)'
+                            : "Renvoyer l'email de vérification",
+                      ),
               ),
               const SizedBox(height: 16),
               TextButton(

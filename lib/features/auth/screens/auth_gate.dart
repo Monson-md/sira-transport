@@ -50,23 +50,20 @@ class _RoleBasedHome extends StatefulWidget {
 
 class _RoleBasedHomeState extends State<_RoleBasedHome> {
   final _authService = AuthService();
-  late final Future<UserModel?> _profileFuture;
 
-  @override
-  void initState() {
-    super.initState();
-    _profileFuture = _authService.getUserData(widget.uid).then((profile) {
-      if (profile != null) {
-        NotificationService().registerForCurrentUser(profile);
-      }
-      return profile;
-    });
-  }
+  // NotificationService ne doit être (ré)enregistré qu'une fois par
+  // connexion, pas à chaque émission du stream (ex: mise à jour du profil
+  // ailleurs, comme une approbation chauffeur).
+  bool _registered = false;
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<UserModel?>(
-      future: _profileFuture,
+    return StreamBuilder<UserModel?>(
+      // currentUserStream combine authStateChanges() et le document
+      // Firestore : un changement de verificationStatus (approbation d'un
+      // chauffeur) met donc à jour ce tableau de bord en temps réel, sans
+      // reconnexion.
+      stream: _authService.currentUserStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
@@ -97,6 +94,11 @@ class _RoleBasedHomeState extends State<_RoleBasedHome> {
               ),
             ),
           );
+        }
+
+        if (!_registered) {
+          _registered = true;
+          NotificationService().registerForCurrentUser(profile);
         }
 
         final isDriver = profile.role == 'driver_moto' || profile.role == 'driver_taxi';

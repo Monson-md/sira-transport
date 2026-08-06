@@ -4,6 +4,13 @@ class RideModel {
   final String id;
   final String clientId;
   final String clientName;
+  // Volontairement absent du document rides/{id} lui-même (voir
+  // RideService.createRideRequest) : un chauffeur ne doit jamais pouvoir
+  // lire ce numéro avant d'avoir accepté la course. Ce champ n'est donc
+  // rempli que lorsque ce RideModel est construit côté client pour la
+  // création (create_ride_screen) ; une lecture Firestore le laisse vide,
+  // RideService.watchClientPhone() étant la seule source une fois la
+  // course publiée.
   final String clientPhone;
   final String type; // 'colis' ou 'passager'
   final String departureNeighborhood;
@@ -15,6 +22,12 @@ class RideModel {
   final String? driverId;
   final String? driverName;
   final String? driverPhone;
+  // Dénormalisés sur la course au moment de l'acceptation (RideService.
+  // acceptRide) : firestore.rules interdit la lecture croisée de profils
+  // (users/{uid} n'est lisible que par son propriétaire), donc c'est la
+  // seule façon pour le client de voir le véhicule/la note du chauffeur.
+  final String? driverVehicleModel;
+  final double? driverRating;
   final String vehicleType; // 'moto', 'taxi' ou 'any' (souhait du client)
   final String country;
   final String city;
@@ -39,6 +52,8 @@ class RideModel {
     this.driverId,
     this.driverName,
     this.driverPhone,
+    this.driverVehicleModel,
+    this.driverRating,
     required this.vehicleType,
     required this.country,
     required this.city,
@@ -66,6 +81,8 @@ class RideModel {
       driverId: map['driverId'],
       driverName: map['driverName'],
       driverPhone: map['driverPhone'],
+      driverVehicleModel: map['driverVehicleModel'],
+      driverRating: (map['driverRating'] as num?)?.toDouble(),
       vehicleType: map['vehicleType'] ?? 'any',
       country: map['country'] ?? '',
       city: map['city'] ?? '',
@@ -100,6 +117,8 @@ class RideModel {
       'driverId': driverId,
       'driverName': driverName,
       'driverPhone': driverPhone,
+      'driverVehicleModel': driverVehicleModel,
+      'driverRating': driverRating,
       'vehicleType': vehicleType,
       'country': country,
       'city': city,

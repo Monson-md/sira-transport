@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class UserModel {
   final String uid;
   final String name;
@@ -7,8 +9,9 @@ class UserModel {
   final String city; // Ex: 'Bamako', 'Abidjan'
   final String neighborhood; // Quartier de résidence, ex: 'Kabala', 'Cocody'
 
-  // Attribut spécifique aux conducteurs
+  // Attributs spécifiques aux conducteurs
   final String? vehicleModel; // Optionnel pour le client, requis pour un chauffeur
+  final String? vehiclePlate; // Optionnel pour le client, requis pour un chauffeur
   final double rating; // Système de notation par étoiles ⭐
   final int ratingCount; // Nombre de notes reçues (verrouillé côté règles)
 
@@ -25,6 +28,9 @@ class UserModel {
   // NotificationService à la connexion et à chaque rafraîchissement.
   final String? fcmToken;
 
+  // Fixé une seule fois à la création, via FieldValue.serverTimestamp().
+  final DateTime? createdAt;
+
   UserModel({
     required this.uid,
     required this.name,
@@ -34,11 +40,13 @@ class UserModel {
     required this.city,
     required this.neighborhood,
     this.vehicleModel,
+    this.vehiclePlate,
     this.rating = 5.0, // Tout le monde commence avec 5 étoiles !
     this.ratingCount = 0,
     required this.verificationStatus,
     this.phoneVerified = false,
     this.fcmToken,
+    this.createdAt,
   });
 
   // Convertir un document Firestore en objet de notre modèle
@@ -52,11 +60,15 @@ class UserModel {
       city: map['city'] ?? '',
       neighborhood: map['neighborhood'] ?? '',
       vehicleModel: map['vehicleModel'],
+      vehiclePlate: map['vehiclePlate'],
       rating: (map['rating'] ?? 5.0).toDouble(),
       ratingCount: (map['ratingCount'] as num?)?.toInt() ?? 0,
       verificationStatus: map['verificationStatus'] ?? 'approved',
       phoneVerified: map['phoneVerified'] ?? false,
       fcmToken: map['fcmToken'],
+      createdAt: map['createdAt'] is Timestamp
+          ? (map['createdAt'] as Timestamp).toDate()
+          : null,
     );
   }
 
@@ -71,11 +83,13 @@ class UserModel {
       'city': city,
       'neighborhood': neighborhood,
       'vehicleModel': vehicleModel,
+      'vehiclePlate': vehiclePlate,
       'rating': rating,
       'ratingCount': ratingCount,
       'verificationStatus': verificationStatus,
       'phoneVerified': phoneVerified,
       'fcmToken': fcmToken,
+      'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : null,
     };
   }
 }

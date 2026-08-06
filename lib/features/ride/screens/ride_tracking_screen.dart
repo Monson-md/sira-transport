@@ -2,8 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../../auth/models/user_model.dart';
-import '../../auth/services/auth_service.dart';
 import '../models/ride_model.dart';
 import '../services/ride_service.dart';
 import 'ride_chat_screen.dart';
@@ -279,6 +277,8 @@ class _AcceptedView extends StatelessWidget {
     final driverId = ride.driverId;
     final driverName = ride.driverName ?? 'Chauffeur';
     final driverPhone = ride.driverPhone;
+    final driverVehicleModel = ride.driverVehicleModel;
+    final driverRating = ride.driverRating;
 
     return SafeArea(
       child: ListView(
@@ -305,40 +305,34 @@ class _AcceptedView extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           if (driverId != null)
-            FutureBuilder<UserModel?>(
-              future: AuthService().getUserData(driverId),
-              builder: (context, snapshot) {
-                final driver = snapshot.data;
-                return Card(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        CircleAvatar(
-                          radius: 32,
-                          backgroundColor: colorScheme.primaryContainer,
-                          child: Text(
-                            driverName.isNotEmpty ? driverName[0].toUpperCase() : '?',
-                            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(driverName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                        if (driver?.vehicleModel != null && driver!.vehicleModel!.isNotEmpty)
-                          Text(
-                            driver.vehicleModel!,
-                            style: TextStyle(color: colorScheme.onSurfaceVariant),
-                          ),
-                        if (driver != null) ...[
-                          const SizedBox(height: 4),
-                          Text('⭐ ${driver.rating.toStringAsFixed(1)}'),
-                        ],
-                      ],
+            Card(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    CircleAvatar(
+                      radius: 32,
+                      backgroundColor: colorScheme.primaryContainer,
+                      child: Text(
+                        driverName.isNotEmpty ? driverName[0].toUpperCase() : '?',
+                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                      ),
                     ),
-                  ),
-                );
-              },
+                    const SizedBox(height: 10),
+                    Text(driverName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    if (driverVehicleModel != null && driverVehicleModel.isNotEmpty)
+                      Text(
+                        driverVehicleModel,
+                        style: TextStyle(color: colorScheme.onSurfaceVariant),
+                      ),
+                    if (driverRating != null) ...[
+                      const SizedBox(height: 4),
+                      Text('⭐ ${driverRating.toStringAsFixed(1)}'),
+                    ],
+                  ],
+                ),
+              ),
             ),
           const SizedBox(height: 16),
           if (driverPhone != null)

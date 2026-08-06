@@ -323,7 +323,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   label: 'Quartier',
                   value: profile.neighborhood,
                 ),
-                if (isDriver)
+                if (isDriver) ...[
                   _InfoTile(
                     icon: Icons.two_wheeler_outlined,
                     label: 'Véhicule',
@@ -331,6 +331,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ? 'Non renseigné'
                         : profile.vehicleModel!,
                   ),
+                  _InfoTile(
+                    icon: Icons.pin_outlined,
+                    label: 'Plaque d\'immatriculation',
+                    value: (profile.vehiclePlate == null || profile.vehiclePlate!.isEmpty)
+                        ? 'Non renseignée'
+                        : profile.vehiclePlate!,
+                  ),
+                ],
                 const SizedBox(height: 8),
                 OutlinedButton.icon(
                   onPressed: () => _editProfile(profile),

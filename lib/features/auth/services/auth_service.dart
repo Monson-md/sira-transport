@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -6,6 +8,14 @@ import '../models/user_model.dart';
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  AuthService() {
+    // Emails Firebase Auth (vérification, réinitialisation de mot de passe)
+    // envoyés en français plutôt que dans la langue par défaut du projet
+    // (anglais) : un email visiblement generique/anglais dans une app
+    // française atterrit plus souvent en spam.
+    _auth.setLanguageCode('fr');
+  }
 
   // Obtenir l'utilisateur actuellement connecté
   User? get currentUser => _auth.currentUser;
@@ -21,6 +31,7 @@ class AuthService {
     required String city,
     required String neighborhood,
     String? vehicleModel,
+    String? vehiclePlate,
   }) async {
     // 1. Création de l'utilisateur dans Firebase Auth
     final UserCredential userCredential =
@@ -46,15 +57,19 @@ class AuthService {
       city: city,
       neighborhood: neighborhood,
       vehicleModel: isDriver ? vehicleModel : null,
+      vehiclePlate: isDriver ? vehiclePlate : null,
       rating: 5.0, // Initialisation à 5 étoiles
       verificationStatus: isDriver ? 'pending' : 'approved',
     );
 
-    // 3. Enregistrement instantané dans la collection "users" de Firestore
-    await _firestore.collection('users').doc(uid).set(newUser.toMap());
+    // 3. Enregistrement instantané dans la collection "users" de Firestore.
+    // createdAt vient toujours du serveur, jamais de DateTime.now() côté
+    // client (règle absolue du projet).
+    final data = newUser.toMap()..['createdAt'] = FieldValue.serverTimestamp();
+    await _firestore.collection('users').doc(uid).set(data);
 
     // 4. Email de vérification, envoyé immédiatement pour que l'écran de
-    // blocage (AuthGate) ait tout de suite quelque chose à faire vérifier.
+    // blocage (AuthGate) ait tout de suite quelque chose à vérifier.
     await userCredential.user!.sendEmailVerification();
 
     return userCredential;
@@ -74,6 +89,12 @@ class AuthService {
     if (user == null) return false;
     await user.reload();
     return _auth.currentUser?.emailVerified ?? false;
+  }
+
+  // ---------------- Mot de passe oublié ----------------
+
+  Future<void> sendPasswordResetEmail(String email) async {
+    await _auth.sendPasswordResetEmail(email: email);
   }
 
   // ---------------- Vérification du numéro par SMS ----------------
@@ -130,6 +151,44 @@ class AuthService {
   // Déconnexion
   Future<void> signOut() async {
     await _auth.signOut();
+  }
+
+  // ---------------- Flux temps réel du profil connecté ----------------
+
+  /// Combine l'état de connexion Firebase Auth et le document Firestore
+  /// users/{uid} : toute mise à jour du profil (ex: verificationStatus qui
+  /// passe à 'approved') est reflétée sans reconnexion ni redémarrage.
+  Stream<UserModel?> get currentUserStream {
+    late final StreamController<UserModel?> controller;
+    StreamSubscription<User?>? authSub;
+    StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? docSub;
+
+    void listenToUser(User? user) {
+      docSub?.cancel();
+      if (user == null) {
+        controller.add(null);
+        return;
+      }
+      docSub = _firestore.collection('users').doc(user.uid).snapshots().listen(
+        (doc) {
+          final data = doc.data();
+          controller.add(data == null ? null : UserModel.fromMap(data));
+        },
+        onError: controller.addError,
+      );
+    }
+
+    controller = StreamController<UserModel?>.broadcast(
+      onListen: () {
+        authSub = _auth.authStateChanges().listen(listenToUser);
+      },
+      onCancel: () {
+        docSub?.cancel();
+        authSub?.cancel();
+      },
+    );
+
+    return controller.stream;
   }
 
   // ---------------- Profil ----------------

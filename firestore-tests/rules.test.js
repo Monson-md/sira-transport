@@ -473,3 +473,92 @@ describe('ratings', () => {
     await assertFails(clientA.collection('ratings').doc('ride-1').set({ stars: 1 }, { merge: true }));
   });
 });
+
+describe('rides/{rideId}/private (numéro du client)', () => {
+  test("un chauffeur ne peut pas lire le numéro du client tant que la course est pending", async () => {
+    await seed(async (db) => {
+      await db.collection('users').doc(CLIENT_A).set(userDoc({ uid: CLIENT_A }));
+      await db.collection('users').doc(DRIVER_APPROVED_BAMAKO).set(
+        userDoc({ uid: DRIVER_APPROVED_BAMAKO, role: 'driver_moto', verificationStatus: 'approved' })
+      );
+      await db.collection('rides').doc('ride-1').set(rideDoc({ clientId: CLIENT_A, status: 'pending' }));
+      await db
+        .collection('rides')
+        .doc('ride-1')
+        .collection('private')
+        .doc('contact')
+        .set({ clientPhone: '+22370000000' });
+    });
+
+    const driver = testEnv.authenticatedContext(DRIVER_APPROVED_BAMAKO).firestore();
+    await assertFails(
+      driver.collection('rides').doc('ride-1').collection('private').doc('contact').get()
+    );
+  });
+
+  test('le chauffeur assigné peut lire le numéro du client une fois la course acceptée', async () => {
+    await seed(async (db) => {
+      await db.collection('users').doc(CLIENT_A).set(userDoc({ uid: CLIENT_A }));
+      await db.collection('users').doc(DRIVER_APPROVED_BAMAKO).set(
+        userDoc({ uid: DRIVER_APPROVED_BAMAKO, role: 'driver_moto', verificationStatus: 'approved' })
+      );
+      await db.collection('rides').doc('ride-1').set(
+        rideDoc({ clientId: CLIENT_A, status: 'accepted', driverId: DRIVER_APPROVED_BAMAKO })
+      );
+      await db
+        .collection('rides')
+        .doc('ride-1')
+        .collection('private')
+        .doc('contact')
+        .set({ clientPhone: '+22370000000' });
+    });
+
+    const driver = testEnv.authenticatedContext(DRIVER_APPROVED_BAMAKO).firestore();
+    await assertSucceeds(
+      driver.collection('rides').doc('ride-1').collection('private').doc('contact').get()
+    );
+  });
+
+  test("un autre chauffeur (qui n'a pas accepté) ne peut pas lire le numéro du client", async () => {
+    await seed(async (db) => {
+      await db.collection('users').doc(CLIENT_A).set(userDoc({ uid: CLIENT_A }));
+      await db.collection('users').doc(DRIVER_APPROVED_BAMAKO).set(
+        userDoc({ uid: DRIVER_APPROVED_BAMAKO, role: 'driver_moto', verificationStatus: 'approved' })
+      );
+      await db.collection('users').doc('driver-other-bamako').set(
+        userDoc({ uid: 'driver-other-bamako', role: 'driver_moto', verificationStatus: 'approved' })
+      );
+      await db.collection('rides').doc('ride-1').set(
+        rideDoc({ clientId: CLIENT_A, status: 'accepted', driverId: DRIVER_APPROVED_BAMAKO })
+      );
+      await db
+        .collection('rides')
+        .doc('ride-1')
+        .collection('private')
+        .doc('contact')
+        .set({ clientPhone: '+22370000000' });
+    });
+
+    const otherDriver = testEnv.authenticatedContext('driver-other-bamako').firestore();
+    await assertFails(
+      otherDriver.collection('rides').doc('ride-1').collection('private').doc('contact').get()
+    );
+  });
+
+  test('une course créée par le client ne peut pas contenir son numéro sur le document principal', async () => {
+    await seed(async (db) => {
+      await db.collection('users').doc(CLIENT_A).set(userDoc({ uid: CLIENT_A }));
+    });
+
+    const clientA = testEnv.authenticatedContext(CLIENT_A).firestore();
+    await assertFails(
+      clientA
+        .collection('rides')
+        .doc('ride-guarded')
+        .set({
+          ...rideDoc({ id: 'ride-guarded', clientId: CLIENT_A }),
+          createdAt: serverTimestamp(),
+        })
+    );
+  });
+});

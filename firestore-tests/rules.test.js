@@ -21,6 +21,12 @@ require('firebase/compat/firestore');
 
 const serverTimestamp = () => firebase.firestore.FieldValue.serverTimestamp();
 
+// Le hook par défaut de Jest (5000 ms) est trop court pour
+// initializeTestEnvironment() sur une machine chargée : la connexion à
+// l'émulateur peut prendre plus de temps que ça sans que ce soit un
+// problème réel.
+jest.setTimeout(60000);
+
 const CLIENT_A = 'client-a';
 const CLIENT_B = 'client-b';
 const DRIVER_PENDING = 'driver-pending';

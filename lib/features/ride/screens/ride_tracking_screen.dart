@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../places/services/place_service.dart';
 import '../models/ride_model.dart';
 import '../services/ride_service.dart';
 import 'ride_chat_screen.dart';
@@ -432,8 +433,85 @@ class _CompletedView extends StatefulWidget {
 
 class _CompletedViewState extends State<_CompletedView> {
   final _rideService = RideService();
+  final _placeService = PlaceService();
   int _selectedStars = 5;
   bool _isSubmitting = false;
+
+  PlaceSuggestion? _suggestion;
+  bool _isHandlingSuggestion = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSuggestion();
+  }
+
+  // Après la 3e course partie du même quartier + repère, propose une fois
+  // d'enregistrer ce couple comme lieu. PlaceService.suggestionFor() gère
+  // déjà "déjà enregistré ?" et "déjà refusé ?" : si un résultat revient
+  // ici, c'est bien la première fois qu'on le montre.
+  Future<void> _loadSuggestion() async {
+    final ride = widget.ride;
+    final suggestion = await _placeService.suggestionFor(
+      neighborhood: ride.departureNeighborhood,
+      landmark: ride.departureLandmark,
+      city: ride.city,
+      country: ride.country,
+    );
+    if (mounted) setState(() => _suggestion = suggestion);
+  }
+
+  Future<void> _saveSuggestedPlace() async {
+    final suggestion = _suggestion;
+    if (suggestion == null) return;
+
+    setState(() => _isHandlingSuggestion = true);
+    try {
+      await _placeService.addPlace(
+        label: suggestion.neighborhood,
+        icon: 'other',
+        neighborhood: suggestion.neighborhood,
+        landmark: suggestion.landmark,
+        city: suggestion.city,
+        country: suggestion.country,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Lieu enregistré.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isHandlingSuggestion = false;
+          _suggestion = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _dismissSuggestion() async {
+    final suggestion = _suggestion;
+    if (suggestion == null) return;
+
+    setState(() => _isHandlingSuggestion = true);
+    try {
+      await _placeService.dismissSuggestion(suggestion.neighborhood, suggestion.landmark);
+    } catch (_) {
+      // Best-effort : au pire on reproposera une fois de plus.
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isHandlingSuggestion = false;
+          _suggestion = null;
+        });
+      }
+    }
+  }
 
   void _finish() {
     Navigator.of(context).popUntil((route) => route.isFirst);
@@ -466,10 +544,10 @@ class _CompletedViewState extends State<_CompletedView> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return SafeArea(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.check_circle, size: 56, color: colorScheme.primary),
             const SizedBox(height: 12),
@@ -522,6 +600,50 @@ class _CompletedViewState extends State<_CompletedView> {
               onPressed: _isSubmitting ? null : _finish,
               child: const Text('Passer'),
             ),
+            if (_suggestion != null) ...[
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: colorScheme.primaryContainer.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      'Tu pars souvent de ${_suggestion!.neighborhood}, '
+                      '${_suggestion!.landmark}.\nL\'enregistrer comme lieu ?',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontWeight: FontWeight.w500),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: _isHandlingSuggestion ? null : _dismissSuggestion,
+                            child: const Text('Non merci'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: _isHandlingSuggestion ? null : _saveSuggestedPlace,
+                            child: _isHandlingSuggestion
+                                ? const SizedBox(
+                                    height: 18,
+                                    width: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : const Text('Enregistrer'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),

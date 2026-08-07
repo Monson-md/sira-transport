@@ -21,11 +21,11 @@ require('firebase/compat/firestore');
 
 const serverTimestamp = () => firebase.firestore.FieldValue.serverTimestamp();
 
-// Le hook par défaut de Jest (5000 ms) est trop court pour
+// Le hook par défaut de Jest (5000 ms) est bien trop court pour
 // initializeTestEnvironment() sur une machine chargée : la connexion à
 // l'émulateur peut prendre plus de temps que ça sans que ce soit un
-// problème réel.
-jest.setTimeout(60000);
+// problème réel (observé jusqu'à plus de 60s certaines fois).
+jest.setTimeout(180000);
 
 const CLIENT_A = 'client-a';
 const CLIENT_B = 'client-b';
@@ -565,6 +565,135 @@ describe('rides/{rideId}/private (numéro du client)', () => {
           ...rideDoc({ id: 'ride-guarded', clientId: CLIENT_A }),
           createdAt: serverTimestamp(),
         })
+    );
+  });
+});
+
+function placeDoc(overrides = {}) {
+  return {
+    label: 'Chez moi',
+    icon: 'home',
+    neighborhood: 'Kalabancoro',
+    landmark: 'près du terrain de foot',
+    city: 'Bamako',
+    country: 'Mali',
+    usageCount: 0,
+    lastUsedAt: null,
+    createdAt: new Date(),
+    ...overrides,
+  };
+}
+
+describe('users/{uid}/places', () => {
+  test('le propriétaire peut créer, lire et supprimer un lieu', async () => {
+    await seed(async (db) => {
+      await db.collection('users').doc(CLIENT_A).set(userDoc({ uid: CLIENT_A }));
+    });
+
+    const clientA = testEnv.authenticatedContext(CLIENT_A).firestore();
+    const placeRef = clientA.collection('users').doc(CLIENT_A).collection('places').doc();
+    await assertSucceeds(placeRef.set(placeDoc()));
+    await assertSucceeds(placeRef.get());
+    await assertSucceeds(placeRef.delete());
+  });
+
+  test("un autre utilisateur ne peut ni lire ni créer un lieu qui n'est pas le sien", async () => {
+    await seed(async (db) => {
+      await db.collection('users').doc(CLIENT_A).set(userDoc({ uid: CLIENT_A }));
+      await db.collection('users').doc(CLIENT_B).set(userDoc({ uid: CLIENT_B }));
+      await db
+        .collection('users')
+        .doc(CLIENT_A)
+        .collection('places')
+        .doc('place-1')
+        .set(placeDoc());
+    });
+
+    const clientB = testEnv.authenticatedContext(CLIENT_B).firestore();
+    await assertFails(
+      clientB.collection('users').doc(CLIENT_A).collection('places').doc('place-1').get()
+    );
+    await assertFails(
+      clientB
+        .collection('users')
+        .doc(CLIENT_A)
+        .collection('places')
+        .doc('place-2')
+        .set(placeDoc())
+    );
+  });
+
+  test('un lieu sans quartier ou repère est refusé', async () => {
+    await seed(async (db) => {
+      await db.collection('users').doc(CLIENT_A).set(userDoc({ uid: CLIENT_A }));
+    });
+
+    const clientA = testEnv.authenticatedContext(CLIENT_A).firestore();
+    await assertFails(
+      clientA
+        .collection('users')
+        .doc(CLIENT_A)
+        .collection('places')
+        .doc('place-1')
+        .set(placeDoc({ neighborhood: '' }))
+    );
+    await assertFails(
+      clientA
+        .collection('users')
+        .doc(CLIENT_A)
+        .collection('places')
+        .doc('place-2')
+        .set(placeDoc({ landmark: '' }))
+    );
+  });
+
+  test('un label de plus de 30 caractères est refusé', async () => {
+    await seed(async (db) => {
+      await db.collection('users').doc(CLIENT_A).set(userDoc({ uid: CLIENT_A }));
+    });
+
+    const clientA = testEnv.authenticatedContext(CLIENT_A).firestore();
+    await assertFails(
+      clientA
+        .collection('users')
+        .doc(CLIENT_A)
+        .collection('places')
+        .doc('place-1')
+        .set(placeDoc({ label: 'x'.repeat(31) }))
+    );
+  });
+});
+
+describe('users/{uid}/dismissedSuggestions', () => {
+  test('le propriétaire peut lire et écrire, un tiers ne peut pas', async () => {
+    await seed(async (db) => {
+      await db.collection('users').doc(CLIENT_A).set(userDoc({ uid: CLIENT_A }));
+      await db.collection('users').doc(CLIENT_B).set(userDoc({ uid: CLIENT_B }));
+    });
+
+    const clientA = testEnv.authenticatedContext(CLIENT_A).firestore();
+    const docRef = clientA
+      .collection('users')
+      .doc(CLIENT_A)
+      .collection('dismissedSuggestions')
+      .doc('kalabancoro__pres_du_terrain');
+    await assertSucceeds(
+      docRef.set({
+        neighborhood: 'Kalabancoro',
+        landmark: 'près du terrain',
+        dismissedAt: serverTimestamp(),
+      })
+    );
+    await assertSucceeds(docRef.get());
+
+    const clientB = testEnv.authenticatedContext(CLIENT_B).firestore();
+    await assertFails(
+      clientB
+        .collection('users')
+        .doc(CLIENT_A)
+        .collection('dismissedSuggestions')
+        .doc('kalabancoro__pres_du_terrain')
+        .get()
     );
   });
 });

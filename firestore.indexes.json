@@ -35,6 +35,15 @@
       ]
     },
     {
+      "collectionGroup": "rides",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "clientId", "order": "ASCENDING" },
+        { "fieldPath": "departureNeighborhood", "order": "ASCENDING" },
+        { "fieldPath": "departureLandmark", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "driver_documents",
       "queryScope": "COLLECTION",
       "fields": [

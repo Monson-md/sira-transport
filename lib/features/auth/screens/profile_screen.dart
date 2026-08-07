@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../notifications/services/notification_service.dart';
+import '../../places/screens/places_screen.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import 'phone_verification_screen.dart';
@@ -349,6 +350,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
+                if (!isDriver) ...[
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const PlacesScreen()),
+                    ),
+                    icon: const Icon(Icons.place_outlined),
+                    label: const Text('Mes lieux'),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 46),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 24),
                 OutlinedButton.icon(
                   onPressed: (_isSigningOut || _isDeletingAccount) ? null : _confirmSignOut,

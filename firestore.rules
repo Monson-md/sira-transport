@@ -137,6 +137,29 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ---------------- users/{uid}/places ----------------
+    // Lieux habituels du client (quartier + repère), pour remplir une
+    // course en un geste. La limite de 8 lieux par utilisateur est
+    // appliquée côté app (PlaceService.addPlace), pas ici : compter les
+    // documents d'une sous-collection n'est pas quelque chose que les
+    // règles savent faire.
+    match /users/{uid}/places/{placeId} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.label.size() > 0
+        && request.resource.data.label.size() <= 30
+        && request.resource.data.neighborhood.size() > 0
+        && request.resource.data.landmark.size() > 0;
+    }
+
+    // ---------------- users/{uid}/dismissedSuggestions ----------------
+    // Trace d'un refus de suggestion "enregistrer ce lieu ?" (voir
+    // PlaceService.suggestionFor/dismissSuggestion), pour ne plus jamais
+    // reproposer le même couple quartier + repère.
+    match /users/{uid}/dismissedSuggestions/{suggestionId} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
     // ---------------- rides ----------------
     match /rides/{rideId} {
       allow create: if signedIn()

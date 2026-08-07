@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../auth/models/user_model.dart';
 import '../../auth/services/auth_service.dart';
+import '../../places/models/place.dart';
+import '../../places/screens/places_screen.dart';
+import '../../places/services/place_service.dart';
 import '../models/ride_model.dart';
 import '../services/ride_service.dart';
 import 'ride_tracking_screen.dart';
@@ -19,6 +22,7 @@ class _CreateRideScreenState extends State<CreateRideScreen> {
   final _formKey = GlobalKey<FormState>();
   final _authService = AuthService();
   final _rideService = RideService();
+  final _placeService = PlaceService();
 
   final _departureNeighborhoodController = TextEditingController();
   final _departureLandmarkController = TextEditingController();
@@ -36,7 +40,14 @@ class _CreateRideScreenState extends State<CreateRideScreen> {
   void initState() {
     super.initState();
     _profileFuture = _loadProfile();
+    // Le petit indicateur "Remplir le départ / l'arrivée" dépend du
+    // contenu des champs de départ : il doit se mettre à jour aussi bien
+    // quand une puce de lieu les remplit que quand le client tape lui-même.
+    _departureNeighborhoodController.addListener(_onDepartureChanged);
+    _departureLandmarkController.addListener(_onDepartureChanged);
   }
+
+  void _onDepartureChanged() => setState(() {});
 
   Future<UserModel?> _loadProfile() async {
     final uid = _authService.currentUser?.uid;
@@ -48,8 +59,35 @@ class _CreateRideScreenState extends State<CreateRideScreen> {
     return profile;
   }
 
+  bool get _departureComplete =>
+      _departureNeighborhoodController.text.trim().isNotEmpty &&
+      _departureLandmarkController.text.trim().isNotEmpty;
+
+  /// Un appui simple remplit le départ ; une fois le départ complet
+  /// (quartier + repère), l'appui suivant remplit l'arrivée. Les champs
+  /// restent modifiables ensuite : c'est une suggestion, pas un verrou.
+  void _applyPlace(Place place) {
+    if (!_departureComplete) {
+      _departureNeighborhoodController.text = place.neighborhood;
+      _departureLandmarkController.text = place.landmark;
+    } else {
+      _arrivalNeighborhoodController.text = place.neighborhood;
+      _arrivalLandmarkController.text = place.landmark;
+      setState(() {});
+    }
+    _placeService.markUsed(place.id);
+  }
+
+  void _openPlaces() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const PlacesScreen()),
+    );
+  }
+
   @override
   void dispose() {
+    _departureNeighborhoodController.removeListener(_onDepartureChanged);
+    _departureLandmarkController.removeListener(_onDepartureChanged);
     _departureNeighborhoodController.dispose();
     _departureLandmarkController.dispose();
     _arrivalNeighborhoodController.dispose();
@@ -172,6 +210,14 @@ class _CreateRideScreenState extends State<CreateRideScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        _PlacesRow(
+                          placesStream: _placeService.myPlaces(),
+                          indicatorText:
+                              _departureComplete ? 'Remplir l\'arrivée' : 'Remplir le départ',
+                          onPlaceTap: _applyPlace,
+                          onAddTap: _openPlaces,
+                        ),
+                        const SizedBox(height: 24),
                         Text(
                           'Que souhaitez-vous envoyer ?',
                           style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -367,6 +413,81 @@ class _CreateRideScreenState extends State<CreateRideScreen> {
         borderSide: BorderSide.none,
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    );
+  }
+}
+
+/// Rangée de puces "lieux favoris" en haut du formulaire : un appui remplit
+/// le départ, puis l'arrivée une fois le départ complet. Toujours une puce
+/// "+ Ajouter" ; si le client n'a encore aucun lieu, c'est la seule.
+class _PlacesRow extends StatelessWidget {
+  final Stream<List<Place>> placesStream;
+  final String indicatorText;
+  final ValueChanged<Place> onPlaceTap;
+  final VoidCallback onAddTap;
+
+  const _PlacesRow({
+    required this.placesStream,
+    required this.indicatorText,
+    required this.onPlaceTap,
+    required this.onAddTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return StreamBuilder<List<Place>>(
+      stream: placesStream,
+      builder: (context, snapshot) {
+        final places = snapshot.data ?? [];
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              places.isEmpty ? 'Enregistre les endroits où tu vas souvent.' : indicatorText,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: places.isEmpty ? FontWeight.normal : FontWeight.w600,
+                color: places.isEmpty ? colorScheme.onSurfaceVariant : colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 38,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  for (final place in places) ...[
+                    _PlaceChip(place: place, onTap: () => onPlaceTap(place)),
+                    const SizedBox(width: 8),
+                  ],
+                  ActionChip(
+                    avatar: const Icon(Icons.add, size: 18),
+                    label: const Text('Ajouter'),
+                    onPressed: onAddTap,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _PlaceChip extends StatelessWidget {
+  final Place place;
+  final VoidCallback onTap;
+
+  const _PlaceChip({required this.place, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return ActionChip(
+      avatar: Icon(placeIconData(place.icon), size: 18),
+      label: Text(place.label),
+      onPressed: onTap,
     );
   }
 }

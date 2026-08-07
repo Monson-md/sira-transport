@@ -5,11 +5,17 @@ import '../../ride/screens/client_home_screen.dart';
 import '../../ride/screens/driver_dashboard_screen.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
-import 'email_verification_screen.dart';
 import 'login_screen.dart';
+import 'phone_verification_gate_screen.dart';
 
 /// Point d'entrée de l'application : redirige vers l'écran de connexion
 /// ou vers le tableau de bord adapté au rôle de l'utilisateur connecté.
+///
+/// Le passage obligatoire est le numéro WhatsApp vérifié par SMS
+/// (phoneVerified, voir _RoleBasedHomeState), pas l'email : pour ce
+/// public, un email de vérification en anglais qui finit en spam bloque
+/// plus qu'il ne protège. L'email reste vérifiable, mais en option depuis
+/// le profil (voir EmailVerificationScreen et ProfileScreen).
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
 
@@ -27,10 +33,6 @@ class AuthGate extends StatelessWidget {
         final user = snapshot.data;
         if (user == null) {
           return const LoginScreen();
-        }
-
-        if (!user.emailVerified) {
-          return EmailVerificationScreen(email: user.email ?? '');
         }
 
         return _RoleBasedHome(uid: user.uid);
@@ -94,6 +96,14 @@ class _RoleBasedHomeState extends State<_RoleBasedHome> {
               ),
             ),
           );
+        }
+
+        // Numéro WhatsApp vérifié par SMS = passage obligatoire. Dès que
+        // phoneVerified passe à true (PhoneVerificationGateScreen écrit
+        // dans Firestore), ce flux réémet et bascule automatiquement sur
+        // le tableau de bord, sans navigation explicite à gérer.
+        if (!profile.phoneVerified) {
+          return PhoneVerificationGateScreen(phoneNumber: profile.phoneNumber);
         }
 
         if (!_registered) {

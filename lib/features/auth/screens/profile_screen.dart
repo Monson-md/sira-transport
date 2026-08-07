@@ -3,6 +3,7 @@ import '../../notifications/services/notification_service.dart';
 import '../../places/screens/places_screen.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
+import 'email_verification_screen.dart';
 import 'phone_verification_screen.dart';
 
 const Map<String, String> _kRoleLabels = {
@@ -29,6 +30,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late Future<UserModel?> _profileFuture;
   bool _isSigningOut = false;
   bool _isDeletingAccount = false;
+
+  bool get _emailVerified => _authService.currentUser?.emailVerified ?? false;
 
   @override
   void initState() {
@@ -295,6 +298,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           );
                         },
                         child: const Text('Vérifier'),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(
+                      _emailVerified ? Icons.verified : Icons.mail_outline,
+                      color: _emailVerified
+                          ? Colors.green
+                          : Theme.of(context).colorScheme.onSurfaceVariant,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _emailVerified
+                            ? 'Email de secours vérifié'
+                            : 'Email de secours non vérifié (facultatif)',
+                      ),
+                    ),
+                    if (!_emailVerified)
+                      TextButton(
+                        onPressed: () async {
+                          await Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => EmailVerificationScreen(
+                                email: _authService.currentUser?.email ?? '',
+                              ),
+                            ),
+                          );
+                          if (mounted) setState(() {});
+                        },
+                        child: const Text('Ajouter'),
                       ),
                   ],
                 ),

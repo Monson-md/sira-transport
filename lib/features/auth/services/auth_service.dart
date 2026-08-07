@@ -101,17 +101,27 @@ class AuthService {
 
   /// Démarre la vérification Firebase Phone Auth. `onCodeSent` reçoit le
   /// verificationId à renvoyer ensuite à [confirmPhoneVerification].
+  /// `onAutoVerified` est appelé quand Android (SMS Retriever) ou iOS
+  /// (validation silencieuse) confirme le numéro sans que l'utilisateur
+  /// ait besoin de saisir le code à la main — le plus simple des deux
+  /// "auto-remplissage" possibles, et celui qui ne demande aucune
+  /// dépendance ni configuration supplémentaire.
   Future<void> startPhoneVerification({
     required String phoneNumber,
     required void Function(String verificationId) onCodeSent,
     required void Function(FirebaseAuthException e) onFailed,
+    required void Function() onAutoVerified,
   }) async {
     await _auth.verifyPhoneNumber(
       phoneNumber: phoneNumber,
-      // La détection auto-SMS Android n'est pas utilisée : on garde une
-      // saisie manuelle du code pour un comportement identique sur toutes
-      // les plateformes.
-      verificationCompleted: (_) {},
+      verificationCompleted: (credential) async {
+        try {
+          await _linkPhoneCredential(credential, phoneNumber);
+          onAutoVerified();
+        } on FirebaseAuthException catch (e) {
+          onFailed(e);
+        }
+      },
       verificationFailed: onFailed,
       codeSent: (verificationId, _) => onCodeSent(verificationId),
       codeAutoRetrievalTimeout: (_) {},
@@ -127,13 +137,20 @@ class AuthService {
     required String smsCode,
     required String phoneNumber,
   }) async {
-    final user = _auth.currentUser;
-    if (user == null) throw StateError('Aucun utilisateur connecté.');
-
     final credential = PhoneAuthProvider.credential(
       verificationId: verificationId,
       smsCode: smsCode,
     );
+    await _linkPhoneCredential(credential, phoneNumber);
+  }
+
+  Future<void> _linkPhoneCredential(
+    PhoneAuthCredential credential,
+    String phoneNumber,
+  ) async {
+    final user = _auth.currentUser;
+    if (user == null) throw StateError('Aucun utilisateur connecté.');
+
     await user.linkWithCredential(credential);
     await user.getIdToken(true);
 

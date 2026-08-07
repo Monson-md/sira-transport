@@ -59,6 +59,14 @@ class _PhoneVerificationScreenState extends State<PhoneVerificationScreen> {
             const SnackBar(content: Text('Code envoyé par SMS.')),
           );
         },
+        onAutoVerified: () {
+          if (!mounted) return;
+          setState(() => _isSendingCode = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Numéro vérifié automatiquement !')),
+          );
+          Navigator.of(context).pop();
+        },
         onFailed: (e) {
           if (!mounted) return;
           setState(() => _isSendingCode = false);

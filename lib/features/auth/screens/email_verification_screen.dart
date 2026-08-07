@@ -1,12 +1,11 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
-import 'auth_gate.dart';
+import 'resend_cooldown_mixin.dart';
 
-/// Bloque l'accès au tableau de bord tant que l'email n'est pas vérifié.
-/// Une fois le lien cliqué dans la boîte mail, l'utilisateur revient ici et
-/// appuie sur "J'ai vérifié mon email" pour recharger son statut.
+/// Vérification de l'email, facultative : accessible depuis le profil
+/// ("Ajouter un email de secours"), plus jamais un blocage d'accès à
+/// l'app — c'est le numéro WhatsApp vérifié par SMS qui joue ce rôle
+/// (voir AuthGate / PhoneVerificationGateScreen).
 class EmailVerificationScreen extends StatefulWidget {
   final String email;
 
@@ -16,48 +15,28 @@ class EmailVerificationScreen extends StatefulWidget {
   State<EmailVerificationScreen> createState() => _EmailVerificationScreenState();
 }
 
-class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
-  static const _resendCooldown = Duration(seconds: 60);
-
+class _EmailVerificationScreenState extends State<EmailVerificationScreen>
+    with ResendCooldownMixin {
   final _authService = AuthService();
   bool _isSending = false;
   bool _isChecking = false;
-  Timer? _cooldownTimer;
-  int _cooldownSeconds = 0;
 
   @override
   void dispose() {
-    _cooldownTimer?.cancel();
+    disposeResendCooldown();
     super.dispose();
   }
 
-  void _startCooldown() {
-    _cooldownTimer?.cancel();
-    setState(() => _cooldownSeconds = _resendCooldown.inSeconds);
-    _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
-      if (_cooldownSeconds <= 1) {
-        timer.cancel();
-        setState(() => _cooldownSeconds = 0);
-      } else {
-        setState(() => _cooldownSeconds--);
-      }
-    });
-  }
-
   // Renvoyer l'email en boucle rapprochée fait taire Firebase sans erreur
-  // (throttling silencieux) : le cooldown ci-dessus évite ce piège, la
-  // cause la plus fréquente d'un email "qui n'arrive jamais" alors que
-  // l'appel a bien réussi.
+  // (throttling silencieux) : le cooldown évite ce piège, la cause la plus
+  // fréquente d'un email "qui n'arrive jamais" alors que l'appel a bien
+  // réussi.
   Future<void> _resend() async {
     setState(() => _isSending = true);
     try {
       await _authService.sendEmailVerification();
       if (!mounted) return;
-      _startCooldown();
+      startResendCooldown();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -81,9 +60,10 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
       final verified = await _authService.reloadAndCheckEmailVerified();
       if (!mounted) return;
       if (verified) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const AuthGate()),
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Email vérifié, merci !')),
         );
+        Navigator.of(context).pop();
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
@@ -99,14 +79,11 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
     }
   }
 
-  Future<void> _signOut() async {
-    await _authService.signOut();
-  }
-
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
+      appBar: AppBar(title: const Text('Email de secours (facultatif)')),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -116,14 +93,15 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
               Icon(Icons.mark_email_unread_outlined, size: 56, color: colorScheme.primary),
               const SizedBox(height: 20),
               Text(
-                'Vérifiez votre adresse email',
+                'Confirme ton adresse email',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 10),
               Text(
                 'Un lien de confirmation a été envoyé à ${widget.email}. '
-                'Ouvrez-le, puis revenez ici.',
+                'Ce n\'est pas obligatoire pour utiliser l\'app : ça sert juste de '
+                'moyen de contact de secours.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: colorScheme.onSurfaceVariant),
               ),
@@ -151,7 +129,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
               ),
               const SizedBox(height: 12),
               OutlinedButton(
-                onPressed: (_isSending || _cooldownSeconds > 0) ? null : _resend,
+                onPressed: (_isSending || cooldownSeconds > 0) ? null : _resend,
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 50),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -163,15 +141,10 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : Text(
-                        _cooldownSeconds > 0
-                            ? 'Renvoyer l\'email (${_cooldownSeconds}s)'
+                        cooldownSeconds > 0
+                            ? 'Renvoyer l\'email (${cooldownSeconds}s)'
                             : "Renvoyer l'email de vérification",
                       ),
-              ),
-              const SizedBox(height: 16),
-              TextButton(
-                onPressed: _signOut,
-                child: const Text('Se déconnecter'),
               ),
             ],
           ),

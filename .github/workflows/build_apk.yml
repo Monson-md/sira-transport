@@ -9,6 +9,8 @@ jobs:
   build:
     name: Build release APK
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
@@ -42,3 +44,16 @@ jobs:
           name: sira-transport-apk
           path: build/app/outputs/flutter-apk/app-release.apk
           retention-days: 30
+
+      - name: Publish/update "latest build" Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-latest
+          name: "Dernier build (${{ github.sha }})"
+          body: |
+            APK généré automatiquement à partir du dernier push sur `main`.
+            Commit : ${{ github.sha }}
+          prerelease: true
+          files: build/app/outputs/flutter-apk/app-release.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

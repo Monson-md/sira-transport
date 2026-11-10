@@ -567,6 +567,54 @@ describe('rides/{rideId}/private (numéro du client)', () => {
         })
     );
   });
+
+  // Reproduit exactement RideService.createRideRequest : la course et son
+  // document de contact partent dans le MÊME WriteBatch. Les règles doivent
+  // donc lire la course avec getAfter() (état d'après le lot), pas get().
+  test('le client peut créer la course et son contact dans un même WriteBatch', async () => {
+    await seed(async (db) => {
+      await db.collection('users').doc(CLIENT_A).set(userDoc({ uid: CLIENT_A }));
+    });
+
+    const clientA = testEnv.authenticatedContext(CLIENT_A).firestore();
+    const rideRef = clientA.collection('rides').doc('ride-batch');
+    // rideDoc contient clientPhone : le service l'enlève du document
+    // principal (interdit par les règles) pour le mettre dans private/contact.
+    const { clientPhone, ...rideData } = rideDoc({ id: 'ride-batch', clientId: CLIENT_A });
+
+    const batch = clientA.batch();
+    batch.set(rideRef, { ...rideData, createdAt: serverTimestamp() });
+    batch.set(rideRef.collection('private').doc('contact'), { clientPhone });
+
+    await assertSucceeds(batch.commit());
+  });
+
+  test("un autre utilisateur ne peut pas créer le contact de la course de quelqu'un d'autre, même dans un WriteBatch", async () => {
+    await seed(async (db) => {
+      await db.collection('users').doc(CLIENT_A).set(userDoc({ uid: CLIENT_A }));
+      await db.collection('users').doc(CLIENT_B).set(userDoc({ uid: CLIENT_B }));
+      await db.collection('rides').doc('ride-1').set(rideDoc({ clientId: CLIENT_A }));
+    });
+
+    const clientB = testEnv.authenticatedContext(CLIENT_B).firestore();
+
+    // 1. Lot complet : CLIENT_B tente de publier une course au nom de
+    // CLIENT_A avec son document de contact.
+    const { clientPhone, ...rideData } = rideDoc({ id: 'ride-b', clientId: CLIENT_A });
+    const rideRef = clientB.collection('rides').doc('ride-b');
+    const batch = clientB.batch();
+    batch.set(rideRef, { ...rideData, createdAt: serverTimestamp() });
+    batch.set(rideRef.collection('private').doc('contact'), { clientPhone });
+    await assertFails(batch.commit());
+
+    // 2. Lot réduit au seul contact, sur une course existante de CLIENT_A.
+    const contactBatch = clientB.batch();
+    contactBatch.set(
+      clientB.collection('rides').doc('ride-1').collection('private').doc('contact'),
+      { clientPhone: '+22370000000' }
+    );
+    await assertFails(contactBatch.commit());
+  });
 });
 
 function placeDoc(overrides = {}) {

@@ -261,6 +261,14 @@ service cloud.firestore {
         return get(/databases/$(database)/documents/rides/$(rideId)).data;
       }
 
+      // État de la course APRÈS le lot d'écritures en cours. Indispensable
+      // pour allow create : RideService.createRideRequest écrit la course et
+      // ce document de contact dans un même WriteBatch, donc get() (qui lit
+      // l'état d'AVANT le lot) ne voit pas encore rides/{rideId}.
+      function rideAfter() {
+        return getAfter(/databases/$(database)/documents/rides/$(rideId)).data;
+      }
+
       allow read: if signedIn()
                   && (ride().clientId == request.auth.uid || ride().driverId == request.auth.uid);
 
@@ -268,7 +276,7 @@ service cloud.firestore {
       // lot que le document rides/{rideId} : voir RideService.
       // createRideRequest, qui écrit les deux dans un même WriteBatch).
       allow create: if signedIn()
-                    && ride().clientId == request.auth.uid
+                    && rideAfter().clientId == request.auth.uid
                     && docId == 'contact'
                     && request.resource.data.clientPhone == me().phoneNumber;
 

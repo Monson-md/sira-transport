@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../../core/config/feature_flags.dart';
 import '../../notifications/services/notification_service.dart';
 import '../../ride/screens/client_home_screen.dart';
 import '../../ride/screens/driver_dashboard_screen.dart';
@@ -98,11 +99,14 @@ class _RoleBasedHomeState extends State<_RoleBasedHome> {
           );
         }
 
-        // Numéro WhatsApp vérifié par SMS = passage obligatoire. Dès que
-        // phoneVerified passe à true (PhoneVerificationGateScreen écrit
-        // dans Firestore), ce flux réémet et bascule automatiquement sur
-        // le tableau de bord, sans navigation explicite à gérer.
-        if (!profile.phoneVerified) {
+        // Numéro WhatsApp vérifié par SMS = passage obligatoire uniquement
+        // quand kSmsVerificationEnabled est actif. En V1 (flag à false), le
+        // SMS est désactivé (Firebase Blaze indisponible), phoneVerified reste
+        // informatif et n'empêche plus l'accès au tableau de bord. En V2, dès
+        // que phoneVerified passe à true (PhoneVerificationGateScreen écrit
+        // dans Firestore), ce flux réémet et bascule automatiquement sur le
+        // tableau de bord, sans navigation explicite à gérer.
+        if (kSmsVerificationEnabled && !profile.phoneVerified) {
           return PhoneVerificationGateScreen(phoneNumber: profile.phoneNumber);
         }
 

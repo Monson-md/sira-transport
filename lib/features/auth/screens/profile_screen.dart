@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/config/feature_flags.dart';
 import '../../notifications/services/notification_service.dart';
 import '../../places/screens/places_screen.dart';
 import '../models/user_model.dart';
@@ -286,7 +287,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             : 'Numéro WhatsApp non vérifié',
                       ),
                     ),
-                    if (!profile.phoneVerified)
+                    // Le bouton de vérification SMS n'apparaît que si le flux
+                    // Phone Auth est activé (V2) ; en V1 phoneVerified reste
+                    // un champ informatif affiché ci-dessous.
+                    if (kSmsVerificationEnabled && !profile.phoneVerified)
                       TextButton(
                         onPressed: () {
                           Navigator.of(context).push(

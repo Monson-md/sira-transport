@@ -583,7 +583,13 @@ describe('rides/{rideId}/private (numéro du client)', () => {
     const { clientPhone, ...rideData } = rideDoc({ id: 'ride-batch', clientId: CLIENT_A });
 
     const batch = clientA.batch();
-    batch.set(rideRef, { ...rideData, createdAt: serverTimestamp() });
+    // champs que RideService écrit toujours à null
+    batch.set(rideRef, {
+      ...rideData,
+      driverVehicleModel: null,
+      driverRating: null,
+      createdAt: serverTimestamp(),
+    });
     batch.set(rideRef.collection('private').doc('contact'), { clientPhone });
 
     await assertSucceeds(batch.commit());
@@ -603,7 +609,13 @@ describe('rides/{rideId}/private (numéro du client)', () => {
     const { clientPhone, ...rideData } = rideDoc({ id: 'ride-b', clientId: CLIENT_A });
     const rideRef = clientB.collection('rides').doc('ride-b');
     const batch = clientB.batch();
-    batch.set(rideRef, { ...rideData, createdAt: serverTimestamp() });
+    // champs que RideService écrit toujours à null
+    batch.set(rideRef, {
+      ...rideData,
+      driverVehicleModel: null,
+      driverRating: null,
+      createdAt: serverTimestamp(),
+    });
     batch.set(rideRef.collection('private').doc('contact'), { clientPhone });
     await assertFails(batch.commit());
 

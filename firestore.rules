@@ -206,9 +206,11 @@ service cloud.firestore {
       // servi — la condition resource.data.status == 'pending' est ce qui
       // empêche deux chauffeurs de accepter la même course (à combiner
       // côté client avec une transaction, cf. RideService.acceptRide).
+      // 30 min : doit rester identique à kRideExpiryMinutes (lib/core/config/ride_config.dart)
       allow update: if approvedDriver()
                     && resource.data.status == 'pending'
                     && request.resource.data.status == 'accepted'
+                    && request.time < resource.data.createdAt + duration.value(30, 'm')
                     && request.resource.data.driverId == request.auth.uid
                     && request.resource.data.driverName == me().name
                     && request.resource.data.driverPhone == me().phoneNumber

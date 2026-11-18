@@ -102,9 +102,19 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     return StreamBuilder<List<RideModel>>(
       stream: _rideService.myRidesStream(profile.uid, 'client'),
       builder: (context, rideSnapshot) {
-        final activeRide = (rideSnapshot.data ?? [])
-            .where((r) => r.status == 'pending' || r.status == 'accepted')
+        final rides = rideSnapshot.data ?? [];
+        final activeRide = rides
+            .where((r) =>
+                r.status == 'accepted' ||
+                (r.status == 'pending' && !r.isExpired))
             .firstOrNull;
+        // La plus récente course du client (le flux est trié par createdAt
+        // décroissant) : sert à expliquer qu'une demande est restée sans
+        // réponse plutôt qu'à afficher un simple « aucune course ».
+        final latestRide = rides.firstOrNull;
+        final latestRideExpired = latestRide != null &&
+            latestRide.status == 'pending' &&
+            latestRide.isExpired;
 
         return SafeArea(
           child: Padding(
@@ -128,7 +138,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                   Expanded(
                     child: Center(
                       child: Text(
-                        'Vous n\'avez aucune course en cours.',
+                        latestRideExpired
+                            ? 'Ta dernière course a expiré : aucun chauffeur '
+                                'n\'a répondu.'
+                            : 'Vous n\'avez aucune course en cours.',
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                               color: Theme.of(context).colorScheme.onSurfaceVariant,

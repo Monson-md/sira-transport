@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/config/feature_flags.dart';
@@ -13,6 +14,12 @@ import '../models/ride_model.dart';
 import '../services/ride_service.dart';
 import 'ride_chat_screen.dart';
 import 'ride_history_screen.dart';
+
+/// Message unique affiché quand l'acceptation échoue pour une raison
+/// attendue : fenêtre de 30 min dépassée (firestore.rules) ou course déjà
+/// prise par un autre chauffeur.
+const String _kRideUnavailableMessage =
+    'Cette course a expiré ou a déjà été prise.';
 
 const Map<String, String> _kVerificationMessages = {
   'pending': 'Ton dossier est en cours de contrôle. Tu recevras les courses '
@@ -170,6 +177,11 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
   bool _voiceEnabled = true;
   UserModel? _profile;
 
+  /// Reconstruit régulièrement l'écran pour retirer les courses dont la
+  /// fenêtre de validité vient d'expirer, sans attendre un événement
+  /// Firestore (le document reste 'pending' tant que personne ne l'accepte).
+  Timer? _expiryTimer;
+
   /// Vrai dès que la synchro du topic de notifications et les annonces
   /// vocales ont été lancées une première fois pour un chauffeur validé.
   bool _approvedInitDone = false;
@@ -178,6 +190,10 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+
+    _expiryTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
 
     final uid = _authService.currentUser?.uid;
     if (uid != null) {
@@ -203,6 +219,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
 
   @override
   void dispose() {
+    _expiryTimer?.cancel();
     _profileSub?.cancel();
     _newRideSub?.cancel();
     WidgetsBinding.instance.removeObserver(this);
@@ -301,11 +318,27 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Course acceptée : ${ride.arrivalNeighborhood}')),
       );
-    } on RideAlreadyTakenException catch (e) {
+    } on RideAlreadyTakenException {
       if (!mounted) return;
       setState(() => _dismissedRideIds.add(ride.id));
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
+        const SnackBar(content: Text(_kRideUnavailableMessage)),
+      );
+    } on FirebaseException catch (e) {
+      if (!mounted) return;
+      if (e.code == 'permission-denied') {
+        // Le serveur refuse l'acceptation quand la fenêtre de 30 min est
+        // dépassée (firestore.rules) : on retire la course de la liste.
+        setState(() => _dismissedRideIds.add(ride.id));
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.code == 'permission-denied'
+                ? _kRideUnavailableMessage
+                : 'Erreur : ${e.toString()}',
+          ),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
@@ -452,7 +485,8 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
                   }
 
                   final rides = (snapshot.data ?? [])
-                      .where((r) => !_dismissedRideIds.contains(r.id))
+                      .where((r) =>
+                          !_dismissedRideIds.contains(r.id) && !r.isExpired)
                       .toList();
 
                   if (rides.isEmpty) {

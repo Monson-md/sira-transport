@@ -248,6 +248,84 @@ describe('rides — transitions de statut', () => {
         .update({ status: 'completed', completedAt: serverTimestamp() })
     );
   });
+
+  // --- Acceptation : fenêtre de 30 min après createdAt (kRideExpiryMinutes) ---
+
+  function approvedBamakoDriver() {
+    return userDoc({
+      uid: DRIVER_APPROVED_BAMAKO,
+      role: 'driver_moto',
+      verificationStatus: 'approved',
+      vehicleModel: 'Suzuki 125',
+    });
+  }
+
+  // Même contenu que RideService.acceptRide : uniquement les champs que la
+  // règle d'acceptation autorise à changer.
+  function acceptPayload() {
+    return {
+      status: 'accepted',
+      driverId: DRIVER_APPROVED_BAMAKO,
+      driverName: 'Test User',
+      driverPhone: '+22370000000',
+      driverVehicleModel: 'Suzuki 125',
+      driverRating: 5.0,
+      acceptedAt: serverTimestamp(),
+    };
+  }
+
+  test("un chauffeur vérifié peut accepter une course pending créée à l'instant", async () => {
+    await seed(async (db) => {
+      await db.collection('users').doc(DRIVER_APPROVED_BAMAKO).set(approvedBamakoDriver());
+      await db.collection('rides').doc('ride-1').set(
+        rideDoc({ clientId: CLIENT_A, status: 'pending', createdAt: new Date() })
+      );
+    });
+
+    const driver = testEnv.authenticatedContext(DRIVER_APPROVED_BAMAKO).firestore();
+    await assertSucceeds(
+      driver.collection('rides').doc('ride-1').update(acceptPayload())
+    );
+  });
+
+  test('un chauffeur vérifié ne peut pas accepter une course pending de plus de 40 min', async () => {
+    await seed(async (db) => {
+      await db.collection('users').doc(DRIVER_APPROVED_BAMAKO).set(approvedBamakoDriver());
+      await db.collection('rides').doc('ride-1').set(
+        rideDoc({
+          clientId: CLIENT_A,
+          status: 'pending',
+          createdAt: new Date(Date.now() - 40 * 60 * 1000),
+        })
+      );
+    });
+
+    const driver = testEnv.authenticatedContext(DRIVER_APPROVED_BAMAKO).firestore();
+    await assertFails(
+      driver.collection('rides').doc('ride-1').update(acceptPayload())
+    );
+  });
+
+  test("le client peut annuler une course pending de plus de 40 min", async () => {
+    await seed(async (db) => {
+      await db.collection('users').doc(CLIENT_A).set(userDoc({ uid: CLIENT_A }));
+      await db.collection('rides').doc('ride-1').set(
+        rideDoc({
+          clientId: CLIENT_A,
+          status: 'pending',
+          createdAt: new Date(Date.now() - 40 * 60 * 1000),
+        })
+      );
+    });
+
+    const clientA = testEnv.authenticatedContext(CLIENT_A).firestore();
+    await assertSucceeds(
+      clientA
+        .collection('rides')
+        .doc('ride-1')
+        .update({ status: 'cancelled', cancelledAt: serverTimestamp() })
+    );
+  });
 });
 
 describe('rides — augmentation de l\'offre', () => {

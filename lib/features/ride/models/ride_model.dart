@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../core/config/ride_config.dart';
 
 class RideModel {
   final String id;
@@ -96,6 +97,17 @@ class RideModel {
 
   static DateTime? _timestampToDate(dynamic value) {
     return value is Timestamp ? value.toDate() : null;
+  }
+
+  /// Vrai seulement si createdAt est connu et que la fenêtre de validité
+  /// de [kRideExpiryMinutes] est dépassée. createdAt null correspond à une
+  /// course qui vient d'être créée côté client : elle n'est pas expirée.
+  bool get isExpired {
+    final created = createdAt;
+    if (created == null) return false;
+    return DateTime.now().isAfter(
+      created.add(const Duration(minutes: kRideExpiryMinutes)),
+    );
   }
 
   // Convertir notre objet en Map pour l'enregistrer dans Firestore.

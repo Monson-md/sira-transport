@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../core/config/feature_flags.dart';
 import '../../../core/services/tts_service.dart';
 import '../../auth/models/user_model.dart';
 import '../../auth/services/auth_service.dart';
@@ -149,7 +150,10 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
   final _authService = AuthService();
   final _rideService = RideService();
 
-  late final Future<UserModel?> _profileFuture;
+  /// Flux du profil : mis en cache pour que le StreamBuilder ne se
+  /// réabonne pas à chaque reconstruction.
+  Stream<UserModel?>? _profileStream;
+  StreamSubscription<UserModel?>? _profileSub;
 
   /// Ids des courses en cours d'acceptation, pour désactiver leur bouton.
   final Set<String> _pendingActionRideIds = {};
@@ -166,15 +170,40 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
   bool _voiceEnabled = true;
   UserModel? _profile;
 
+  /// Vrai dès que la synchro du topic de notifications et les annonces
+  /// vocales ont été lancées une première fois pour un chauffeur validé.
+  bool _approvedInitDone = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _profileFuture = _loadProfile();
+
+    final uid = _authService.currentUser?.uid;
+    if (uid != null) {
+      // Le document users/{uid} est suivi en temps réel : quand l'admin
+      // passe verificationStatus à 'approved', l'écran se débloque sans
+      // redémarrer l'app. _profile reste à jour pour le bouton historique.
+      _profileStream = _authService.watchUserData(uid);
+      _profileSub = _authService.watchUserData(uid).listen(
+        (profile) {
+          if (!mounted) return;
+          setState(() => _profile = profile);
+          if (profile != null && profile.verificationStatus == 'approved') {
+            unawaited(_initApprovedDriver(profile));
+          }
+        },
+        onError: (_) {
+          if (!mounted) return;
+          setState(() => _profile = null);
+        },
+      );
+    }
   }
 
   @override
   void dispose() {
+    _profileSub?.cancel();
     _newRideSub?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -190,19 +219,19 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
     }
   }
 
-  Future<UserModel?> _loadProfile() async {
-    final uid = _authService.currentUser?.uid;
-    if (uid == null) return null;
-    final profile = await _authService.getUserData(uid);
-    if (mounted) setState(() => _profile = profile);
-    // Un chauffeur non vérifié n'a pas le droit d'interroger les courses
-    // disponibles (firestore.rules), donc pas de topic ni d'annonces
-    // pertinents pour lui.
-    if (profile != null && profile.verificationStatus == 'approved') {
+  /// Synchro du topic de notifications et annonces vocales : une seule fois,
+  /// à la première valeur du profil où le chauffeur est validé. Une erreur
+  /// ici ne doit jamais empêcher l'affichage des courses disponibles.
+  Future<void> _initApprovedDriver(UserModel profile) async {
+    if (_approvedInitDone) return;
+    _approvedInitDone = true;
+    try {
       await NotificationService().syncTopicForDriver(profile);
       await _initVoiceAnnouncements(profile);
+    } catch (_) {
+      // Notifications ou voix indisponibles : la liste des courses reste
+      // utilisable, c'est le principal.
     }
-    return profile;
   }
 
   Future<void> _initVoiceAnnouncements(UserModel profile) async {
@@ -345,8 +374,8 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
           ),
         ],
       ),
-      body: FutureBuilder<UserModel?>(
-        future: _profileFuture,
+      body: StreamBuilder<UserModel?>(
+        stream: _profileStream,
         builder: (context, profileSnapshot) {
           if (profileSnapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -501,20 +530,23 @@ class _PendingVerificationView extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               _kVerificationMessages[verificationStatus] ??
-                  'Ton dossier est en cours de contrôle.',
+                  'Ton compte est en cours de vérification par l\'équipe. '
+                      'Cet écran se met à jour tout seul dès que tu es validé.',
               textAlign: TextAlign.center,
               style: TextStyle(color: colorScheme.onSurfaceVariant),
             ),
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const DriverDocumentsScreen()),
-                );
-              },
-              icon: const Icon(Icons.upload_file_outlined),
-              label: const Text('Gérer mes pièces'),
-            ),
+            if (kDriverDocumentsEnabled) ...[
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const DriverDocumentsScreen()),
+                  );
+                },
+                icon: const Icon(Icons.upload_file_outlined),
+                label: const Text('Gérer mes pièces'),
+              ),
+            ],
           ],
         ),
       ),

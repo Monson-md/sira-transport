@@ -258,6 +258,16 @@ class AuthService {
     await _firestore.collection('users').doc(uid).update({'fcmToken': null});
   }
 
+  /// Flux temps réel du document users/{uid} : l'écran qui l'écoute voit
+  /// les changements faits par l'admin (ex: verificationStatus) sans
+  /// redémarrer l'app.
+  Stream<UserModel?> watchUserData(String uid) {
+    return _firestore.collection('users').doc(uid).snapshots().map((doc) {
+      if (!doc.exists) return null;
+      return UserModel.fromMap(doc.data() as Map<String, dynamic>);
+    });
+  }
+
   // Récupérer les données Firestore de l'utilisateur connecté
   Future<UserModel?> getUserData(String uid) async {
     final DocumentSnapshot doc =
